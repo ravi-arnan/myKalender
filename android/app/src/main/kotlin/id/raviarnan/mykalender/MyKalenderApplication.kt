@@ -29,8 +29,16 @@ class MyKalenderApplication : Application() {
         ).apply {
             description = getString(R.string.pre_alarm_channel_description)
         }
+        val eventsChannel = NotificationChannel(
+            id.raviarnan.mykalender.notifications.EventNotifications.CHANNEL_ID,
+            getString(R.string.events_channel_name),
+            NotificationManager.IMPORTANCE_DEFAULT,
+        ).apply {
+            description = getString(R.string.events_channel_description)
+        }
         val nm = getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(alarmChannel)
         nm.createNotificationChannel(previewChannel)
+        nm.createNotificationChannel(eventsChannel)
     }
 }

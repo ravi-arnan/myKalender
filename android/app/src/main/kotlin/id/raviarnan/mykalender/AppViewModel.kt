@@ -10,6 +10,7 @@ import id.raviarnan.mykalender.auth.AuthRepository
 import id.raviarnan.mykalender.data.Event
 import id.raviarnan.mykalender.data.EventInput
 import id.raviarnan.mykalender.data.EventRepository
+import id.raviarnan.mykalender.notifications.EventNotifications
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -36,6 +37,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private var eventsJob: Job? = null
     private var lastScheduledIds: Set<String> = emptySet()
+    private val seenEventIds: MutableSet<String> = mutableSetOf()
+    private var firstSnapshot: Boolean = true
 
     init {
         viewModelScope.launch {
@@ -48,11 +51,35 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun startEventStream(uid: String) {
         eventsJob?.cancel()
+        firstSnapshot = true
+        seenEventIds.clear()
         eventsJob = viewModelScope.launch {
             eventsRepo.upcomingEvents(uid).collectLatest { events ->
                 _uiState.value = _uiState.value.copy(events = events)
                 scheduler.reconcile(lastScheduledIds, events)
                 lastScheduledIds = events.map { it.id }.toSet()
+
+                if (firstSnapshot) {
+                    firstSnapshot = false
+                    for (e in events) seenEventIds.add(e.id)
+                } else {
+                    val now = System.currentTimeMillis()
+                    for (e in events) {
+                        if (seenEventIds.contains(e.id)) continue
+                        seenEventIds.add(e.id)
+                        // Only surface notifications for events that were created
+                        // very recently — otherwise we'd spam on every paginated
+                        // batch from Firestore. 60s window is generous.
+                        val createdMs = e.createdAt?.toDate()?.time ?: 0L
+                        if (now - createdMs < 60_000L && e.source != "gcal-holiday") {
+                            EventNotifications.postNewEvent(
+                                getApplication(),
+                                e.id,
+                                e.title,
+                            )
+                        }
+                    }
+                }
             }
         }
     }

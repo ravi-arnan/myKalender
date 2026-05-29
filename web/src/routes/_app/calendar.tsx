@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Timestamp } from "firebase/firestore";
 import { auth } from "../../lib/firebase";
+import { notify } from "../../lib/notifications";
 import {
   addDays,
   addMonths,
@@ -112,13 +113,33 @@ function CalendarPage() {
     return { start: startOfDay(viewDate), end: endOfDay(viewDate) };
   }, [view, viewDate]);
 
+  const seenIdsRef = useRef<Set<string>>(new Set());
+  const firstSnapshotRef = useRef(true);
+
   useEffect(() => {
-    return subscribeEventsInRange(
-      user.uid,
-      range.start,
-      range.end,
-      setEvents,
-    );
+    return subscribeEventsInRange(user.uid, range.start, range.end, (next) => {
+      setEvents(next);
+      // Detect events newly added since the previous snapshot. Skip the first
+      // emission (initial load) and anything with a stale createdAt so we don't
+      // spam notifications for events that existed before this session.
+      if (firstSnapshotRef.current) {
+        firstSnapshotRef.current = false;
+        for (const e of next) seenIdsRef.current.add(e.id);
+        return;
+      }
+      const now = Date.now();
+      for (const e of next) {
+        if (seenIdsRef.current.has(e.id)) continue;
+        seenIdsRef.current.add(e.id);
+        const createdMs = e.createdAt?.toMillis?.() ?? 0;
+        if (now - createdMs < 60_000) {
+          notify("Jadwal baru ditambahkan", {
+            body: e.title,
+            tag: `mykalender-event-${e.id}`,
+          });
+        }
+      }
+    });
   }, [user.uid, range.start, range.end]);
 
   const filteredEvents = useMemo(() => {

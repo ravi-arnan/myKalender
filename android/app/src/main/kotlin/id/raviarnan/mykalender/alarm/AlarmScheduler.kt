@@ -22,6 +22,10 @@ class AlarmScheduler(private val context: Context) {
     private val alarmManager: AlarmManager = context.getSystemService()!!
 
     fun schedule(event: Event) {
+        // Skip events explicitly opted out of alarms (e.g. imported holidays).
+        if (event.reminderOffsetMinutes < 0) return
+        if (event.source == "gcal-holiday") return
+
         val now = System.currentTimeMillis()
         val effectiveStartMs = if (event.recurrence.isNullOrBlank() || event.recurrence == RecurrenceHelper.NONE) {
             event.start.toDate().time

@@ -53,7 +53,7 @@ function AccountsPage() {
         user.uid,
         token,
         info.email,
-        30,
+        365,
       );
       setMessage({
         ok: true,

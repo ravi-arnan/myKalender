@@ -8,6 +8,7 @@ import {
 } from "./firebase";
 import { upsertEventById } from "./firestore-events";
 import { markAccountSynced } from "./connected-accounts";
+import { INDONESIAN_HOLIDAY_CALENDAR_ID } from "./types";
 
 interface GoogleCalendarEvent {
   id: string;
@@ -18,6 +19,11 @@ interface GoogleCalendarEvent {
   end?: { dateTime?: string; date?: string };
 }
 
+interface CalendarListResponse {
+  items?: GoogleCalendarEvent[];
+  nextPageToken?: string;
+}
+
 interface GoogleCalendarEventInput {
   summary: string;
   description?: string;
@@ -25,34 +31,46 @@ interface GoogleCalendarEventInput {
   end: { dateTime?: string; date?: string };
 }
 
-interface CalendarListResponse {
-  items?: GoogleCalendarEvent[];
-}
-
 const CALENDAR_API_BASE = "https://www.googleapis.com/calendar/v3";
+const DEFAULT_DAYS_AHEAD = 365;
 
-async function fetchPrimaryEvents(token: string, daysAhead: number) {
+async function fetchCalendarEvents(
+  token: string,
+  calendarId: string,
+  daysAhead: number,
+): Promise<GoogleCalendarEvent[]> {
   const now = new Date();
   const max = new Date();
   max.setDate(now.getDate() + daysAhead);
 
-  const url = new URL(`${CALENDAR_API_BASE}/calendars/primary/events`);
-  url.searchParams.set("timeMin", now.toISOString());
-  url.searchParams.set("timeMax", max.toISOString());
-  url.searchParams.set("singleEvents", "true");
-  url.searchParams.set("orderBy", "startTime");
-  url.searchParams.set("maxResults", "200");
+  const all: GoogleCalendarEvent[] = [];
+  let pageToken: string | undefined;
 
-  const response = await fetch(url.toString(), {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!response.ok) {
-    throw new Error(
-      `Google Calendar API error: ${response.status} ${response.statusText}`,
+  do {
+    const url = new URL(
+      `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events`,
     );
-  }
-  const data = (await response.json()) as CalendarListResponse;
-  return data.items ?? [];
+    url.searchParams.set("timeMin", now.toISOString());
+    url.searchParams.set("timeMax", max.toISOString());
+    url.searchParams.set("singleEvents", "true");
+    url.searchParams.set("orderBy", "startTime");
+    url.searchParams.set("maxResults", "250");
+    if (pageToken) url.searchParams.set("pageToken", pageToken);
+
+    const response = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      throw new Error(
+        `Google Calendar API error (${calendarId}): ${response.status} ${response.statusText}`,
+      );
+    }
+    const data = (await response.json()) as CalendarListResponse;
+    all.push(...(data.items ?? []));
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+
+  return all;
 }
 
 function toTimestamp(value: { dateTime?: string; date?: string } | undefined):
@@ -74,6 +92,7 @@ function toTimestamp(value: { dateTime?: string; date?: string } | undefined):
 export interface SyncResult {
   imported: number;
   skipped: number;
+  holidaysImported?: number;
 }
 
 /**
@@ -85,9 +104,9 @@ export async function syncCalendarForAccount(
   uid: string,
   accessToken: string,
   accountEmail: string,
-  daysAhead: number = 30,
+  daysAhead: number = DEFAULT_DAYS_AHEAD,
 ): Promise<SyncResult> {
-  const events = await fetchPrimaryEvents(accessToken, daysAhead);
+  const events = await fetchCalendarEvents(accessToken, "primary", daysAhead);
   const normalizedEmail = accountEmail.toLowerCase();
 
   let imported = 0;
@@ -127,25 +146,51 @@ export async function syncCalendarForAccount(
 }
 
 /**
- * Convenience for the primary signed-in user. Uses the access token cached
- * during Firebase Auth sign-in, refreshing it via signInWithPopup if expired.
+ * Imports Indonesian national holidays from Google's public calendar. Stored
+ * with source="gcal-holiday" so the alarm scheduler can skip them — we want
+ * holidays visible in the calendar but not waking anyone up at midnight.
  */
-export async function syncGoogleCalendar(
+export async function syncIndonesianHolidays(
   uid: string,
-  daysAhead: number = 30,
-): Promise<SyncResult> {
-  let token = getCachedAccessToken();
-  if (!token) {
-    const result = await signInWithPopup(auth, googleProvider);
-    cacheAccessTokenFromCredential(result);
-    token = getCachedAccessToken();
+  accessToken: string,
+  daysAhead: number = DEFAULT_DAYS_AHEAD,
+): Promise<{ imported: number; skipped: number }> {
+  const events = await fetchCalendarEvents(
+    accessToken,
+    INDONESIAN_HOLIDAY_CALENDAR_ID,
+    daysAhead,
+  );
+  let imported = 0;
+  let skipped = 0;
+
+  for (const ev of events) {
+    if (ev.status === "cancelled") {
+      skipped += 1;
+      continue;
+    }
+    const start = toTimestamp(ev.start);
+    const end = toTimestamp(ev.end);
+    if (!start || !end) {
+      skipped += 1;
+      continue;
+    }
+    const docId = `gcal_holiday_${ev.id}`;
+    await upsertEventById(uid, docId, {
+      title: ev.summary?.trim() || "(libur)",
+      description: ev.description?.trim() || undefined,
+      start: start.ts,
+      end: end.ts,
+      allDay: start.allDay,
+      // Sentinel value: alarm scheduler skips events with negative offset.
+      reminderOffsetMinutes: -1,
+      source: "gcal-holiday",
+      gcalEventId: ev.id,
+      accountEmail: "holidays",
+    });
+    imported += 1;
   }
-  if (!token) throw new Error("Gagal mendapatkan access token Google");
 
-  const email = auth.currentUser?.email;
-  if (!email) throw new Error("User belum sign-in");
-
-  return syncCalendarForAccount(uid, token, email, daysAhead);
+  return { imported, skipped };
 }
 
 async function ensurePrimaryToken(): Promise<string> {
@@ -157,6 +202,32 @@ async function ensurePrimaryToken(): Promise<string> {
   }
   if (!token) throw new Error("Gagal mendapatkan access token Google");
   return token;
+}
+
+/**
+ * Convenience for the primary signed-in user. Syncs both their main calendar
+ * and the Indonesian national holidays calendar, both 1 year ahead.
+ */
+export async function syncGoogleCalendar(
+  uid: string,
+  daysAhead: number = DEFAULT_DAYS_AHEAD,
+): Promise<SyncResult> {
+  const token = await ensurePrimaryToken();
+  const email = auth.currentUser?.email;
+  if (!email) throw new Error("User belum sign-in");
+
+  const primary = await syncCalendarForAccount(uid, token, email, daysAhead);
+  // Holidays are best-effort: if the user hasn't subscribed to the calendar or
+  // the API call fails, we still consider the main sync a success.
+  let holidaysImported = 0;
+  try {
+    const result = await syncIndonesianHolidays(uid, token, daysAhead);
+    holidaysImported = result.imported;
+  } catch (e) {
+    console.warn("Holidays sync gagal:", e);
+  }
+
+  return { ...primary, holidaysImported };
 }
 
 function toGcalDateField(

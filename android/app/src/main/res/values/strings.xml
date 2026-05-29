@@ -11,6 +11,9 @@
     <string name="pre_alarm_channel_description">Heads-up notifikasi 5 menit sebelum jadwal dimulai</string>
     <string name="pre_alarm_title">Jadwal sebentar lagi</string>
     <string name="pre_alarm_body">"%1$s" mulai 5 menit lagi.</string>
+    <string name="events_channel_name">Jadwal Baru</string>
+    <string name="events_channel_description">Notifikasi saat ada jadwal baru ditambahkan dari device lain</string>
+    <string name="event_added_title">Jadwal baru ditambahkan</string>
     <string name="alarm_ringing">Pengingat berbunyi</string>
     <string name="dismiss">Matikan</string>
     <string name="snooze_5min">Tunda 5 menit</string>

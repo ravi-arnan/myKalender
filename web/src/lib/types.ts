@@ -1,6 +1,9 @@
 import { Timestamp } from "firebase/firestore";
 
-export type EventSource = "manual" | "gcal";
+export type EventSource = "manual" | "gcal" | "gcal-holiday";
+
+export const INDONESIAN_HOLIDAY_CALENDAR_ID =
+  "id.indonesian#holiday@group.v.calendar.google.com";
 
 export type RecurrencePreset =
   | "none"

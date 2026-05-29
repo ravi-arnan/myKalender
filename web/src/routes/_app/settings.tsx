@@ -1,8 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Bell, Check, Globe, Link2, Loader2, Monitor, Moon, Palette, ShieldCheck, Sun } from "lucide-react";
-import { useState } from "react";
+import { Bell, BellRing, Check, Globe, Link2, Loader2, Monitor, Moon, Palette, ShieldCheck, Sun } from "lucide-react";
+import { useEffect, useState } from "react";
 import { auth } from "../../lib/firebase";
 import { syncGoogleCalendar } from "../../lib/gcal-sync";
+import {
+  notificationPermission,
+  notify,
+  requestNotificationPermission,
+} from "../../lib/notifications";
 import {
   getThemePreference,
   setThemePreference,
@@ -17,6 +22,25 @@ function SettingsPage() {
   const [theme, setTheme] = useState<ThemePreference>(() => getThemePreference());
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [notifPermission, setNotifPermission] = useState(notificationPermission());
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setNotifPermission(notificationPermission());
+    }, 1500);
+    return () => window.clearInterval(id);
+  }, []);
+
+  async function handleEnableNotifications() {
+    const result = await requestNotificationPermission();
+    setNotifPermission(result);
+    if (result === "granted") {
+      notify("Notifikasi aktif", {
+        body: "myKalender akan kasih kabar kalau ada jadwal baru.",
+        tag: "mykalender-test",
+      });
+    }
+  }
 
   function handleThemeChange(next: ThemePreference) {
     setTheme(next);
@@ -29,10 +53,16 @@ function SettingsPage() {
     setSyncing(true);
     setSyncMessage(null);
     try {
-      const result = await syncGoogleCalendar(user.uid, 30);
-      setSyncMessage({
-        ok: true,
-        text: `${result.imported} jadwal berhasil di-import. ${result.skipped} di-skip.`,
+      const result = await syncGoogleCalendar(user.uid, 365);
+      const holidayText = result.holidaysImported
+        ? ` + ${result.holidaysImported} hari libur`
+        : "";
+      const summary = `${result.imported} jadwal di-import${holidayText}. ${result.skipped} di-skip.`;
+      setSyncMessage({ ok: true, text: summary });
+      notify("Sync Google Calendar selesai", {
+        body: summary,
+        tag: "mykalender-sync",
+        silent: true,
       });
     } catch (e) {
       setSyncMessage({
@@ -83,6 +113,55 @@ function SettingsPage() {
         <SettingSection icon={<Bell size={16} />} title="Default reminder">
           <Row label="Offset alarm bawaan" value="20 menit sebelum" />
           <Row label="Suara alarm" value="Default sistem" />
+        </SettingSection>
+
+        <SettingSection icon={<BellRing size={16} />} title="Notifikasi browser">
+          <div className="px-4 py-3 bg-canvas">
+            {notifPermission === "unsupported" ? (
+              <p className="text-sm text-muted">
+                Browser-mu gak support Notification API. Coba Chrome / Firefox /
+                Safari versi modern.
+              </p>
+            ) : notifPermission === "denied" ? (
+              <>
+                <p className="text-sm text-body mb-1">Notifikasi diblokir</p>
+                <p className="text-xs text-muted">
+                  Buka pengaturan situs di browser (ikon kunci di address bar) →
+                  cari "Notifications" → ubah ke Allow.
+                </p>
+              </>
+            ) : notifPermission === "granted" ? (
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-body mb-0.5">Notifikasi aktif</p>
+                  <p className="text-xs text-muted">
+                    Kamu bakal dapet notif saat ada jadwal baru atau sync
+                    selesai.
+                  </p>
+                </div>
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-success px-2 py-1 rounded-full bg-success/10">
+                  <Check size={12} />
+                  Aktif
+                </span>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm text-body mb-1">Aktifkan notifikasi web</p>
+                <p className="text-xs text-muted mb-3">
+                  Saat ada jadwal baru dari device lain atau sync selesai, kamu
+                  bakal dapet notif browser meski tab gak aktif.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleEnableNotifications}
+                  className="inline-flex items-center gap-2 rounded-md bg-primary text-on-primary px-4 py-2 text-sm font-semibold hover:bg-primary-active transition"
+                >
+                  <BellRing size={14} />
+                  Aktifkan notifikasi
+                </button>
+              </>
+            )}
+          </div>
         </SettingSection>
 
         <SettingSection icon={<Link2 size={16} />} title="Google Calendar">

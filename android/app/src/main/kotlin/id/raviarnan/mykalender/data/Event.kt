@@ -18,6 +18,8 @@ data class Event(
     val gcalEventId: String? = null,
     val alarmSoundUri: String? = null,
     val recurrence: String? = null,
+    val accountEmail: String? = null,
+    val createdAt: Timestamp? = null,
 ) {
     /** When the alarm should fire, in epoch millis. */
     val alarmAtMillis: Long
