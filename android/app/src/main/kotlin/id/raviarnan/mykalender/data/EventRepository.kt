@@ -20,6 +20,7 @@ data class EventInput(
     val gcalEventId: String? = null,
     val alarmSoundUri: String? = null,
     val recurrence: String? = null,
+    val alarmMode: String? = null,
 )
 
 class EventRepository(
@@ -89,5 +90,6 @@ class EventRepository(
         "gcalEventId" to gcalEventId,
         "alarmSoundUri" to alarmSoundUri,
         "recurrence" to recurrence,
+        "alarmMode" to alarmMode,
     )
 }

@@ -49,7 +49,9 @@ class AlarmScheduler(private val context: Context) {
             alarmManager.setAlarmClock(info, operation)
         }
 
-        schedulePreAlarm(event, effectiveStartMs)
+        if (event.alarmMode != "notification") {
+            schedulePreAlarm(event, effectiveStartMs)
+        }
     }
 
     /**
@@ -142,6 +144,7 @@ class AlarmScheduler(private val context: Context) {
             title = event.title,
             whenMillis = effectiveStartMs,
             soundUri = event.alarmSoundUri,
+            alarmMode = event.alarmMode,
         )
         return PendingIntent.getBroadcast(
             context,

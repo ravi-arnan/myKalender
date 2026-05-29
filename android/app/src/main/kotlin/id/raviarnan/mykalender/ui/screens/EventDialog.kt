@@ -22,8 +22,13 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.foundation.border
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -115,6 +120,7 @@ fun EventDialog(
     var reminderOffset by remember { mutableStateOf(existing?.reminderOffsetMinutes ?: 20L) }
     var soundUri by remember { mutableStateOf(existing?.alarmSoundUri) }
     var recurrence by remember { mutableStateOf(existing?.recurrence ?: "none") }
+    var alarmMode by remember { mutableStateOf(existing?.alarmMode ?: "alarm") }
     var error by remember { mutableStateOf<String?>(null) }
     var recurrenceMenuOpen by remember { mutableStateOf(false) }
 
@@ -165,6 +171,7 @@ fun EventDialog(
             gcalEventId = existing?.gcalEventId,
             alarmSoundUri = soundUri,
             recurrence = if (recurrence == "none") null else recurrence,
+            alarmMode = alarmMode,
         )
         onSave(input)
     }
@@ -303,6 +310,25 @@ fun EventDialog(
                     }
                 }
 
+                Field(icon = Icons.Filled.NotificationsActive, label = "Mode pengingat") {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        AlarmModeOption(
+                            label = "Alarm beneran",
+                            description = "Bunyi keras, full-screen, sampai dimatikan",
+                            selected = alarmMode == "alarm",
+                            onClick = { alarmMode = "alarm" },
+                            modifier = Modifier.weight(1f),
+                        )
+                        AlarmModeOption(
+                            label = "Notifikasi biasa",
+                            description = "Heads-up notif standar, gak loud",
+                            selected = alarmMode == "notification",
+                            onClick = { alarmMode = "notification" },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+
                 Field(icon = Icons.Filled.MusicNote, label = "Suara alarm") {
                     OutlinedButton(
                         onClick = { openSoundPicker() },
@@ -431,6 +457,40 @@ fun EventDialog(
                 TextButton(onClick = { showEndTimePicker = false }) { Text("Batal") }
             },
             text = { TimePicker(state = state) },
+        )
+    }
+}
+
+@Composable
+private fun AlarmModeOption(
+    label: String,
+    description: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val bg = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
+    val fg = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+    val border = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(bg)
+            .border(1.dp, border, RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = fg,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = description,
+            style = MaterialTheme.typography.labelSmall,
+            color = if (selected) fg.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 2.dp),
         )
     }
 }
