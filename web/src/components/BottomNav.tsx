@@ -1,5 +1,5 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { CalendarDays, Link2, Settings } from "lucide-react";
+import { CalendarDays, Link2, Settings, Sparkles, Wallet } from "lucide-react";
 
 interface BottomNavItem {
   to: string;
@@ -9,6 +9,8 @@ interface BottomNavItem {
 
 const ITEMS: BottomNavItem[] = [
   { to: "/calendar", label: "Kalender", icon: <CalendarDays size={20} /> },
+  { to: "/ai", label: "AI", icon: <Sparkles size={20} /> },
+  { to: "/money", label: "Keuangan", icon: <Wallet size={20} /> },
   { to: "/accounts", label: "Akun", icon: <Link2 size={20} /> },
   { to: "/settings", label: "Pengaturan", icon: <Settings size={20} /> },
 ];
