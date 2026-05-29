@@ -1,0 +1,11 @@
+{
+  "name": "mykalender-scripts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "add-test-event": "node add-test-event.mjs"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.0"
+  }
+}
