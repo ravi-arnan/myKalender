@@ -2,15 +2,41 @@ import { Link } from "@tanstack/react-router";
 import {
   CalendarDays,
   ExternalLink,
+  FileSpreadsheet,
+  FileText,
+  GraduationCap,
   Grid3x3,
+  HardDrive,
   HelpCircle,
   Link2,
   LogOut,
+  Mail,
+  Presentation,
   Settings,
+  UserCircle,
+  Video,
 } from "lucide-react";
 import { useState } from "react";
 import { signOut } from "firebase/auth";
 import { auth } from "../lib/firebase";
+
+interface GoogleService {
+  label: string;
+  href: string;
+  icon: React.ReactNode;
+}
+
+const GOOGLE_SERVICES: GoogleService[] = [
+  { label: "Akun", href: "https://myaccount.google.com", icon: <UserCircle size={20} /> },
+  { label: "Gmail", href: "https://mail.google.com", icon: <Mail size={20} /> },
+  { label: "Drive", href: "https://drive.google.com", icon: <HardDrive size={20} /> },
+  { label: "Calendar", href: "https://calendar.google.com", icon: <CalendarDays size={20} /> },
+  { label: "Docs", href: "https://docs.google.com", icon: <FileText size={20} /> },
+  { label: "Sheets", href: "https://sheets.google.com", icon: <FileSpreadsheet size={20} /> },
+  { label: "Slides", href: "https://slides.google.com", icon: <Presentation size={20} /> },
+  { label: "Meet", href: "https://meet.google.com", icon: <Video size={20} /> },
+  { label: "Classroom", href: "https://classroom.google.com", icon: <GraduationCap size={20} /> },
+];
 
 export function AppLauncher() {
   const [open, setOpen] = useState(false);
@@ -27,9 +53,9 @@ export function AppLauncher() {
       {open ? (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 mt-1.5 w-72 rounded-lg border border-hairline bg-canvas shadow-xl z-20 p-2">
+          <div className="absolute right-0 mt-1.5 w-80 max-h-[80vh] overflow-y-auto rounded-lg border border-hairline bg-canvas shadow-xl z-20 p-2">
             <h4 className="text-[11px] font-semibold text-muted uppercase tracking-wider px-2 py-1.5">
-              Tujuan cepat
+              Dalam app
             </h4>
             <div className="grid grid-cols-3 gap-1">
               <LauncherTile
@@ -55,22 +81,28 @@ export function AppLauncher() {
             <div className="border-t border-hairline my-2" />
 
             <h4 className="text-[11px] font-semibold text-muted uppercase tracking-wider px-2 py-1.5">
-              Eksternal
+              Layanan Google
+            </h4>
+            <div className="grid grid-cols-3 gap-1">
+              {GOOGLE_SERVICES.map((svc) => (
+                <ExternalTile
+                  key={svc.label}
+                  href={svc.href}
+                  icon={svc.icon}
+                  label={svc.label}
+                />
+              ))}
+            </div>
+
+            <div className="border-t border-hairline my-2" />
+
+            <h4 className="text-[11px] font-semibold text-muted uppercase tracking-wider px-2 py-1.5">
+              Lainnya
             </h4>
             <ExternalRow
-              href="https://calendar.google.com"
-              icon={<CalendarDays size={16} />}
-              label="Buka Google Calendar"
-            />
-            <ExternalRow
-              href="https://myaccount.google.com"
-              icon={<Link2 size={16} />}
-              label="Kelola akun Google"
-            />
-            <ExternalRow
-              href="https://github.com/ravi-arnan"
+              href="https://github.com/ravi-arnan/myKalender"
               icon={<HelpCircle size={16} />}
-              label="Bantuan & saran"
+              label="Source code & bantuan"
             />
 
             <div className="border-t border-hairline my-2" />
@@ -115,6 +147,34 @@ function LauncherTile({
         {label}
       </span>
     </Link>
+  );
+}
+
+function ExternalTile({
+  href,
+  icon,
+  label,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex flex-col items-center gap-1.5 px-2 py-3 rounded-md hover:bg-surface-soft transition group relative"
+    >
+      <span className="text-ink">{icon}</span>
+      <span className="text-[11px] font-medium text-body group-hover:text-ink">
+        {label}
+      </span>
+      <ExternalLink
+        size={9}
+        className="absolute top-2 right-2 text-muted-soft opacity-0 group-hover:opacity-100 transition"
+      />
+    </a>
   );
 }
 
