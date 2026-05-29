@@ -46,9 +46,14 @@ Status: **Phase 1 (Web) + Phase 2 (Android alarm) selesai 2026-05-29.** Core req
 ## Belum
 
 ### Operasional / distribusi
-- [ ] **Verifikasi setelah reboot device**
-  - Reboot HP teman, pastikan `BootReceiver` re-schedule alarm yang akan datang
-  - Testing only, no code change
+- [x] **Verifikasi setelah reboot device** — done 2026-05-30 (Redmi/MIUI, USB)
+  - `BootReceiver` terbukti re-schedule: proc di-spawn untuk broadcast BootReceiver
+    (caller=null, tanpa Activity), event mendatang dijadwalkan ulang dari Firestore
+  - Alarm fire post-reboot tanpa buka app: suara (FGS allow-listed) + getar + layar
+    penuh (lewat full-screen-intent, nembus lockscreen) ✓
+  - Catatan: `AlarmReceiver.startActivity` langsung kena BAL_BLOCK saat app di
+    background (Android 14+); layar penuh tetap muncul via full-screen-intent
+    AlarmRingingService (~4 dtk lebih lambat). Lihat fix cap alarm di bawah.
 - [x] **CI/CD GitHub Actions** — done 2026-05-29
   - `.github/workflows/android.yml`: build debug APK on push, upload artifact (14-day retention)
   - `.github/workflows/web.yml`: typecheck + build verification dengan placeholder Firebase env
