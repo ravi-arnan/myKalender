@@ -4,6 +4,7 @@ import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.SetOptions
 import id.raviarnan.mykalender.data.EventInput
 import id.raviarnan.mykalender.data.EventRepository
 import kotlinx.coroutines.channels.awaitClose
@@ -139,6 +140,37 @@ class MoneyRepository(
             .await()
     }
 
+    // ------------------------------------------------------------- Budgets --
+
+    fun budgets(uid: String): Flow<List<Budget>> = callbackFlow {
+        val reg = col(uid, "budgets")
+            .addSnapshotListener { snap, err ->
+                if (err != null) { close(err); return@addSnapshotListener }
+                if (snap == null) return@addSnapshotListener
+                trySend(snap.documents.mapNotNull { d ->
+                    d.toObject(Budget::class.java)?.copy(id = d.id)
+                })
+            }
+        awaitClose { reg.remove() }
+    }
+
+    /** Upsert the budget for a category (doc id == categoryId). amount<=0 removes it. */
+    suspend fun setBudget(uid: String, categoryId: String, amount: Long) {
+        val ref = col(uid, "budgets").document(categoryId)
+        if (amount <= 0) {
+            ref.delete().await()
+            return
+        }
+        ref.set(
+            mapOf(
+                "categoryId" to categoryId,
+                "amount" to amount,
+                "updatedAt" to FieldValue.serverTimestamp(),
+            ),
+            SetOptions.merge(),
+        ).await()
+    }
+
     // -------------------------------------------------------------- Helpers --
 
     private fun billEvent(input: BillInput): EventInput {
@@ -172,6 +204,7 @@ class MoneyRepository(
         "type" to type,
         "amount" to amount,
         "walletId" to walletId,
+        "toWalletId" to toWalletId,
         "categoryId" to categoryId,
         "date" to date,
         "note" to note,

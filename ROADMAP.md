@@ -118,7 +118,10 @@ kode terisolasi (`lib/money/`, `components/money/`) agar bisa diekstrak nanti.
 - [x] **myDuit v2 (web)** — done 2026-05-29
   - **Transfer antar dompet** — tipe transaksi ketiga (from→to), tidak dihitung income/expense
   - **Anggaran bulanan** — koleksi `budgets` (key by categoryId), progress per kategori + laporan pengeluaran
-- [ ] **myDuit v2 sisa** — kategori custom, port transfer/anggaran ke Android, grafik visual (pie/line)
+- [x] **myDuit v2 Android** — done 2026-05-29
+  - **Transfer antar dompet** — toggle tipe ketiga di TransactionDialog (Dari → Ke dompet), `toWalletId` di model + repo, render baris transfer (ikon SwapHoriz, jumlah netral)
+  - **Anggaran bulanan** — tab "Anggaran", `MoneyRepository.budgets`/`setBudget` (upsert by categoryId), `BudgetDialog`, progress bar per kategori + laporan pengeluaran bulanan
+- [ ] **myDuit v2 sisa** — kategori custom, grafik visual (pie/line)
 
 ### Polish kecil
 - [x] **Theme picker di Android** — done 2026-05-29

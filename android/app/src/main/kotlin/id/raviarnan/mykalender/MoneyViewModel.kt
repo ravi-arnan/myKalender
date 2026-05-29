@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import id.raviarnan.mykalender.data.money.Bill
 import id.raviarnan.mykalender.data.money.BillInput
+import id.raviarnan.mykalender.data.money.Budget
 import id.raviarnan.mykalender.data.money.MoneyRepository
 import id.raviarnan.mykalender.data.money.Transaction
 import id.raviarnan.mykalender.data.money.TransactionInput
@@ -22,6 +23,7 @@ data class MoneyUiState(
     val wallets: List<Wallet> = emptyList(),
     val transactions: List<Transaction> = emptyList(),
     val bills: List<Bill> = emptyList(),
+    val budgets: List<Budget> = emptyList(),
     val walletsLoaded: Boolean = false,
     val txLoaded: Boolean = false,
     val error: String? = null,
@@ -61,6 +63,11 @@ class MoneyViewModel(application: Application) : AndroidViewModel(application) {
                 _state.update { it.copy(bills = list) }
             }
         }
+        jobs += viewModelScope.launch {
+            repo.budgets(uid).collectLatest { list ->
+                _state.update { it.copy(budgets = list) }
+            }
+        }
     }
 
     private fun run(block: suspend (uid: String) -> Unit) {
@@ -95,4 +102,9 @@ class MoneyViewModel(application: Application) : AndroidViewModel(application) {
     }
     fun deleteBill(bill: Bill) = run { uid -> repo.deleteBill(uid, bill) }
     fun markBillPaid(bill: Bill) = run { uid -> repo.markBillPaid(uid, bill) }
+
+    // Budgets
+    fun setBudget(categoryId: String, amount: Long) = run { uid ->
+        repo.setBudget(uid, categoryId, amount)
+    }
 }

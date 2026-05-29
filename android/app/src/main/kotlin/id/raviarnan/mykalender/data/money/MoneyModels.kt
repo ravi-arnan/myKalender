@@ -60,6 +60,8 @@ data class TransactionInput(
     val type: String,
     val amount: Long,
     val walletId: String,
+    /** Destination wallet — set only for transfers. */
+    val toWalletId: String? = null,
     val categoryId: String,
     val date: Timestamp,
     val note: String? = null,
@@ -89,6 +91,18 @@ data class BillInput(
     val dayOfMonth: Int,
     val reminderOffsetMinutes: Long,
     val alarmMode: String,
+)
+
+// ---------------------------------------------------------------- Budget ----
+
+/**
+ * Monthly spending limit for one expense category. Doc id == categoryId so
+ * there is at most one budget per category (mirrors the web upsert-by-id).
+ */
+data class Budget(
+    val id: String = "",
+    val categoryId: String = "",
+    val amount: Long = 0,
 )
 
 // -------------------------------------------------------------- Category ----

@@ -25,12 +25,14 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -49,6 +51,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import id.raviarnan.mykalender.MoneyViewModel
 import id.raviarnan.mykalender.data.money.Bill
+import id.raviarnan.mykalender.data.money.Budget
+import id.raviarnan.mykalender.data.money.EXPENSE_CATEGORIES
 import id.raviarnan.mykalender.data.money.Transaction
 import id.raviarnan.mykalender.data.money.Wallet
 import id.raviarnan.mykalender.data.money.WALLET_TYPE_LABELS
@@ -65,6 +69,7 @@ import java.util.Locale
 
 private enum class MoneyTab(val label: String) {
     Transaksi("Transaksi"),
+    Anggaran("Anggaran"),
     Tagihan("Tagihan"),
     Dompet("Dompet"),
 }
@@ -96,6 +101,7 @@ fun MoneyScreen(
     var showWalletDialog by remember { mutableStateOf(false) }
     var editingBill by remember { mutableStateOf<Bill?>(null) }
     var showBillDialog by remember { mutableStateOf(false) }
+    var budgetCategory by remember { mutableStateOf<String?>(null) }
 
     val balances = remember(state.wallets, state.transactions) {
         computeWalletBalances(state.wallets, state.transactions)
@@ -105,6 +111,7 @@ fun MoneyScreen(
     fun openAddForCurrentTab() {
         when (tab) {
             MoneyTab.Transaksi -> { editingTx = null; showTxDialog = true }
+            MoneyTab.Anggaran -> {} // budgets are edited per-category row
             MoneyTab.Tagihan -> { editingBill = null; showBillDialog = true }
             MoneyTab.Dompet -> { editingWallet = null; showWalletDialog = true }
         }
@@ -124,7 +131,7 @@ fun MoneyScreen(
                 color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.weight(1f),
             )
-            if (hasWallets) {
+            if (hasWallets && tab != MoneyTab.Anggaran) {
                 IconButton(onClick = { openAddForCurrentTab() }) {
                     Icon(Icons.Filled.Add, contentDescription = "Tambah")
                 }
@@ -153,6 +160,14 @@ fun MoneyScreen(
                 onPrevMonth = { viewMonth = addMonth(viewMonth, -1) },
                 onNextMonth = { viewMonth = addMonth(viewMonth, 1) },
                 onEdit = { editingTx = it; showTxDialog = true },
+            )
+            tab == MoneyTab.Anggaran -> AnggaranTab(
+                transactions = state.transactions,
+                budgets = state.budgets,
+                viewMonth = viewMonth,
+                onPrevMonth = { viewMonth = addMonth(viewMonth, -1) },
+                onNextMonth = { viewMonth = addMonth(viewMonth, 1) },
+                onEditBudget = { budgetCategory = it },
             )
             tab == MoneyTab.Tagihan -> TagihanTab(
                 bills = state.bills,
@@ -209,6 +224,17 @@ fun MoneyScreen(
             },
             onDelete = editingBill?.let { b ->
                 { viewModel.deleteBill(b); showBillDialog = false; editingBill = null }
+            },
+        )
+    }
+    budgetCategory?.let { catId ->
+        BudgetDialog(
+            categoryLabel = categoryOrFallback(catId, "expense").label,
+            currentAmount = state.budgets.find { it.categoryId == catId }?.amount ?: 0L,
+            onDismiss = { budgetCategory = null },
+            onSave = { amount ->
+                viewModel.setBudget(catId, amount)
+                budgetCategory = null
             },
         )
     }
@@ -341,6 +367,9 @@ private fun TransaksiTab(
                         TransactionRow(
                             tx = tx,
                             walletName = wallets.find { it.id == tx.walletId }?.name ?: "—",
+                            toWalletName = tx.toWalletId?.let { id ->
+                                wallets.find { it.id == id }?.name ?: "—"
+                            },
                             onClick = { onEdit(tx) },
                         )
                     }
@@ -364,9 +393,16 @@ private fun SummaryItem(label: String, value: Long, income: Boolean) {
 }
 
 @Composable
-private fun TransactionRow(tx: Transaction, walletName: String, onClick: () -> Unit) {
+private fun TransactionRow(
+    tx: Transaction,
+    walletName: String,
+    toWalletName: String?,
+    onClick: () -> Unit,
+) {
+    val isTransfer = tx.type == "transfer"
     val cat = categoryOrFallback(tx.categoryId, tx.type)
     val income = tx.type == "income"
+    val tint = if (isTransfer) "#3b82f6" else cat.color
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
@@ -383,26 +419,171 @@ private fun TransactionRow(tx: Transaction, walletName: String, onClick: () -> U
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(colorFromHex(cat.color).copy(alpha = 0.18f)),
-            )
+                    .background(colorFromHex(tint).copy(alpha = 0.18f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (isTransfer) {
+                    Icon(
+                        Icons.Filled.SwapHoriz,
+                        contentDescription = null,
+                        tint = colorFromHex(tint),
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
             Spacer(Modifier.size(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = tx.note?.ifBlank { null } ?: cat.label,
+                    text = if (isTransfer) tx.note?.ifBlank { null } ?: "Transfer"
+                    else tx.note?.ifBlank { null } ?: cat.label,
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onBackground,
                 )
                 Text(
-                    text = "${cat.label} · $walletName",
+                    text = if (isTransfer) "$walletName → ${toWalletName ?: "—"}"
+                    else "${cat.label} · $walletName",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             Text(
-                text = (if (income) "+" else "−") + formatIDR(tx.amount),
+                text = if (isTransfer) formatIDR(tx.amount)
+                else (if (income) "+" else "−") + formatIDR(tx.amount),
                 style = MaterialTheme.typography.titleSmall,
-                color = if (income) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground,
+                color = when {
+                    isTransfer -> MaterialTheme.colorScheme.onSurfaceVariant
+                    income -> MaterialTheme.colorScheme.primary
+                    else -> MaterialTheme.colorScheme.onBackground
+                },
             )
+        }
+    }
+}
+
+@Composable
+private fun AnggaranTab(
+    transactions: List<Transaction>,
+    budgets: List<Budget>,
+    viewMonth: Long,
+    onPrevMonth: () -> Unit,
+    onNextMonth: () -> Unit,
+    onEditBudget: (String) -> Unit,
+) {
+    val monthCal = remember(viewMonth) { Calendar.getInstance().apply { timeInMillis = viewMonth } }
+    val monthExpense = remember(transactions, viewMonth) {
+        transactions.filter { t ->
+            t.type == "expense" && run {
+                val c = Calendar.getInstance().apply { timeInMillis = t.date.toDate().time }
+                c.get(Calendar.MONTH) == monthCal.get(Calendar.MONTH) &&
+                    c.get(Calendar.YEAR) == monthCal.get(Calendar.YEAR)
+            }
+        }
+    }
+    val spendByCategory = remember(monthExpense) {
+        monthExpense.groupBy { it.categoryId }.mapValues { (_, v) -> v.sumOf { it.amount } }
+    }
+    val totalExpense = monthExpense.sumOf { it.amount }
+    val monthFmt = remember { SimpleDateFormat("MMMM yyyy", Locale("id", "ID")) }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                elevation = CardDefaults.cardElevation(0.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Text(
+                        text = "Pengeluaran " + monthFmt.format(Date(viewMonth)).replaceFirstChar { it.uppercase() },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(formatIDR(totalExpense), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onBackground)
+                }
+            }
+        }
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Anggaran kategori",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = onPrevMonth) { Icon(Icons.Filled.ChevronLeft, "Bulan sebelumnya") }
+                IconButton(onClick = onNextMonth) { Icon(Icons.Filled.ChevronRight, "Bulan berikutnya") }
+            }
+        }
+        items(EXPENSE_CATEGORIES, key = { it.id }) { cat ->
+            BudgetRow(
+                categoryId = cat.id,
+                spent = spendByCategory[cat.id] ?: 0L,
+                budget = budgets.find { it.categoryId == cat.id }?.amount ?: 0L,
+                onEdit = { onEditBudget(cat.id) },
+            )
+        }
+        item { Spacer(Modifier.height(80.dp)) }
+    }
+}
+
+@Composable
+private fun BudgetRow(categoryId: String, spent: Long, budget: Long, onEdit: () -> Unit) {
+    val cat = categoryOrFallback(categoryId, "expense")
+    val over = budget > 0 && spent > budget
+    val pct = if (budget > 0) (spent.toFloat() / budget.toFloat()).coerceIn(0f, 1f) else 0f
+    val accent = if (over) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground
+    Card(
+        onClick = onEdit,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(0.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(colorFromHex(cat.color).copy(alpha = 0.18f)),
+                )
+                Spacer(Modifier.size(12.dp))
+                Text(
+                    text = cat.label,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.weight(1f),
+                )
+                if (budget > 0) {
+                    Text(
+                        text = "${formatIDR(spent)} / ${formatIDR(budget)}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = accent,
+                    )
+                } else {
+                    Text(
+                        text = if (spent > 0) "${formatIDR(spent)} · set budget" else "set budget",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (budget > 0) {
+                Spacer(Modifier.height(10.dp))
+                LinearProgressIndicator(
+                    progress = { pct },
+                    modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                    color = if (over) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                )
+            }
         }
     }
 }

@@ -60,6 +60,14 @@ fun TransactionDialog(
     var walletId by remember {
         mutableStateOf(existing?.walletId ?: wallets.firstOrNull()?.id ?: "")
     }
+    var toWalletId by remember {
+        mutableStateOf(
+            existing?.toWalletId
+                ?: wallets.getOrNull(1)?.id
+                ?: wallets.firstOrNull()?.id
+                ?: "",
+        )
+    }
     var dateMillis by remember {
         mutableStateOf(existing?.date?.toDate()?.time ?: initialDateMillis)
     }
@@ -81,12 +89,16 @@ fun TransactionDialog(
         val amount = parseIDR(amountStr)
         if (amount <= 0) { error = "Jumlah harus lebih dari 0"; return }
         if (walletId.isBlank()) { error = "Pilih dompet dulu"; return }
+        if (type == "transfer" && (toWalletId.isBlank() || toWalletId == walletId)) {
+            error = "Pilih dompet tujuan yang berbeda"; return
+        }
         onSave(
             TransactionInput(
                 type = type,
                 amount = amount,
                 walletId = walletId,
-                categoryId = categoryId,
+                toWalletId = if (type == "transfer") toWalletId else null,
+                categoryId = if (type == "transfer") "" else categoryId,
                 date = Timestamp(Date(dateMillis)),
                 note = note.trim().ifBlank { null },
             ),
@@ -109,31 +121,45 @@ fun TransactionDialog(
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TypeToggle("Pengeluaran", type == "expense", Modifier.weight(1f)) { switchType("expense") }
-                    TypeToggle("Pemasukan", type == "income", Modifier.weight(1f)) { switchType("income") }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    TypeToggle("Keluar", type == "expense", Modifier.weight(1f)) { switchType("expense") }
+                    TypeToggle("Masuk", type == "income", Modifier.weight(1f)) { switchType("income") }
+                    TypeToggle("Transfer", type == "transfer", Modifier.weight(1f)) { switchType("transfer") }
                 }
 
                 MoneyField("Jumlah") {
                     AmountField(value = amountStr, onValueChange = { amountStr = it })
                 }
 
-                MoneyField("Kategori") {
-                    SelectField(
-                        selected = categoryId,
-                        options = categories.map { it.id },
-                        label = { id -> categories.find { it.id == id }?.label ?: id },
-                        onSelect = { categoryId = it },
-                    )
+                if (type != "transfer") {
+                    MoneyField("Kategori") {
+                        SelectField(
+                            selected = categoryId,
+                            options = categories.map { it.id },
+                            label = { id -> categories.find { it.id == id }?.label ?: id },
+                            onSelect = { categoryId = it },
+                        )
+                    }
                 }
 
-                MoneyField("Dompet") {
+                MoneyField(if (type == "transfer") "Dari dompet" else "Dompet") {
                     SelectField(
                         selected = walletId,
                         options = wallets.map { it.id },
                         label = { id -> wallets.find { it.id == id }?.name ?: "—" },
                         onSelect = { walletId = it },
                     )
+                }
+
+                if (type == "transfer") {
+                    MoneyField("Ke dompet") {
+                        SelectField(
+                            selected = toWalletId,
+                            options = wallets.map { it.id },
+                            label = { id -> wallets.find { it.id == id }?.name ?: "—" },
+                            onSelect = { toWalletId = it },
+                        )
+                    }
                 }
 
                 MoneyField("Tanggal") {
