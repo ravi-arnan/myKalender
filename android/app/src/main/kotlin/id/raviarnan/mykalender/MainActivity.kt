@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Settings
@@ -44,6 +45,7 @@ import id.raviarnan.mykalender.ui.screens.EventDialog
 import id.raviarnan.mykalender.ui.screens.EventsScreen
 import id.raviarnan.mykalender.ui.screens.SettingsScreen
 import id.raviarnan.mykalender.ui.screens.SignInScreen
+import id.raviarnan.mykalender.ui.money.MoneyScreen
 import androidx.compose.runtime.collectAsState
 import id.raviarnan.mykalender.ui.theme.MyKalenderTheme
 import id.raviarnan.mykalender.ui.theme.ThemeManager
@@ -51,6 +53,7 @@ import id.raviarnan.mykalender.ui.theme.ThemePreference
 
 private enum class Tab(val label: String, val icon: ImageVector) {
     Events("Kalender", Icons.Outlined.CalendarMonth),
+    Money("Keuangan", Icons.Outlined.AccountBalanceWallet),
     Accounts("Akun", Icons.Outlined.Link),
     Settings("Pengaturan", Icons.Outlined.Settings),
 }
@@ -186,6 +189,8 @@ private fun AppRoot(
                         showEventDialog = true
                     },
                 )
+
+                Tab.Money -> MoneyScreen(uid = user.uid)
 
                 Tab.Accounts -> AccountsScreen(
                     userEmail = user.email,
