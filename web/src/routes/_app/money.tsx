@@ -29,6 +29,7 @@ import {
   type CustomCategoryInput,
 } from "../../lib/money/category-store";
 import { CategoryDialog } from "../../components/money/CategoryDialog";
+import { SpendingCharts } from "../../components/money/SpendingCharts";
 import { formatIDR } from "../../lib/money/format";
 import { WALLET_TYPE_OPTIONS, type Transaction, type Wallet } from "../../lib/money/types";
 import { computeWalletBalances } from "../../lib/money/balances";
@@ -163,6 +164,45 @@ function MoneyPage() {
     }
     return map;
   }, [monthTx]);
+
+  // Expense breakdown by category (desc) for the donut chart.
+  const categorySpending = useMemo(
+    () =>
+      [...spendByCategory.entries()]
+        .filter(([, amt]) => amt > 0)
+        .map(([id, amount]) => ({
+          category: resolveCategory(id, "expense", customCategories),
+          amount,
+        }))
+        .sort((a, b) => b.amount - a.amount),
+    [spendByCategory, customCategories],
+  );
+
+  // Income vs expense over the six months ending at the viewed month.
+  const monthlyTrend = useMemo(() => {
+    const out: { label: string; income: number; expense: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const m = addMonths(viewMonth, -i);
+      let inc = 0;
+      let exp = 0;
+      for (const t of transactions) {
+        const d = t.date.toDate();
+        if (
+          d.getMonth() === m.getMonth() &&
+          d.getFullYear() === m.getFullYear()
+        ) {
+          if (t.type === "income") inc += t.amount;
+          else if (t.type === "expense") exp += t.amount;
+        }
+      }
+      out.push({
+        label: MONTH_NAMES_ID[m.getMonth()].slice(0, 3),
+        income: inc,
+        expense: exp,
+      });
+    }
+    return out;
+  }, [transactions, viewMonth]);
 
   // Group the (date-desc) month transactions into day buckets.
   const dayGroups = useMemo(() => {
@@ -402,6 +442,11 @@ function MoneyPage() {
                 {formatIDR(expense)}
               </p>
             </section>
+
+            <SpendingCharts
+              categorySpending={categorySpending}
+              trend={monthlyTrend}
+            />
 
             <div className="flex items-center justify-between">
               <span className="text-sm font-semibold text-ink">Anggaran kategori</span>

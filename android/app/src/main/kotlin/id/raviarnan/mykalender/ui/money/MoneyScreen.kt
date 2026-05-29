@@ -523,6 +523,34 @@ private fun AnggaranTab(
     val totalExpense = monthExpense.sumOf { it.amount }
     val monthFmt = remember { SimpleDateFormat("MMMM yyyy", Locale("id", "ID")) }
 
+    // Expense breakdown (desc) for the donut.
+    val categorySpending = remember(spendByCategory, customCategories) {
+        spendByCategory.entries
+            .filter { it.value > 0 }
+            .map { categoryOrFallbackWith(it.key, "expense", customCategories) to it.value }
+            .sortedByDescending { it.second }
+    }
+    // Income vs expense over the six months ending at the viewed month.
+    val trend = remember(transactions, viewMonth) {
+        val short = SimpleDateFormat("MMM", Locale("id", "ID"))
+        (5 downTo 0).map { back ->
+            val c = Calendar.getInstance().apply {
+                timeInMillis = viewMonth
+                add(Calendar.MONTH, -back)
+            }
+            val mTx = transactions.filter { t ->
+                val tc = Calendar.getInstance().apply { timeInMillis = t.date.toDate().time }
+                tc.get(Calendar.MONTH) == c.get(Calendar.MONTH) &&
+                    tc.get(Calendar.YEAR) == c.get(Calendar.YEAR)
+            }
+            TrendPoint(
+                label = short.format(c.time).replaceFirstChar { it.uppercase() },
+                income = mTx.filter { it.type == "income" }.sumOf { it.amount },
+                expense = mTx.filter { it.type == "expense" }.sumOf { it.amount },
+            )
+        }
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
@@ -546,6 +574,10 @@ private fun AnggaranTab(
                 }
             }
         }
+        if (categorySpending.isNotEmpty()) {
+            item { SpendingDonut(categorySpending) }
+        }
+        item { TrendChart(trend) }
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(

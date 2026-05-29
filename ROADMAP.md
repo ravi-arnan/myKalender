@@ -126,7 +126,10 @@ kode terisolasi (`lib/money/`, `components/money/`) agar bisa diekstrak nanti.
   - Web: registry ikon (17 pilihan) + helper murni `categoriesForWith`/`resolveCategory`, `category-store.ts` (CRUD), `CategoryDialog` (nama/jenis/warna/ikon), tab "kategori" untuk kelola
   - Android: model `CustomCategory` + repo CRUD + `CategoryDialog` (nama/jenis/warna — tanpa ikon, baris kategori dirender per-warna), tab "Kategori" (tab di-scroll horizontal)
   - Kategori custom muncul di picker transaksi, baris transaksi, dan tab anggaran di kedua platform
-- [ ] **myDuit v2 sisa** — grafik visual (pie/line)
+- [x] **Grafik visual (web + Android)** — done 2026-05-29
+  - Tab Anggaran: donut komposisi pengeluaran per kategori (tail → "Lainnya") + grafik garis tren 6 bulan (masuk vs keluar)
+  - Pure SVG di web (`SpendingCharts.tsx`), Compose Canvas di Android (`SpendingCharts.kt`) — tanpa library chart
+  - myDuit v2 selesai penuh (transfer, anggaran, kategori custom, grafik) di kedua platform
 
 ### Polish kecil
 - [x] **Theme picker di Android** — done 2026-05-29
