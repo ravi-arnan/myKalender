@@ -41,8 +41,8 @@ firestore-debug.log*
 # Android local config
 android/local.properties
 
-# TanStack Router auto-generated
-web/src/routeTree.gen.ts
+# TanStack Router build cache (routeTree.gen.ts IS committed so CI typecheck
+# works without a generate step before tsc)
 **/.tanstack/
 
 # Old cleanup

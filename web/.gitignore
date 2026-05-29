@@ -28,5 +28,6 @@ dist-ssr
 .env.local
 .env.*.local
 
-# TanStack Router auto-generated route tree
-src/routeTree.gen.ts
+# Note: src/routeTree.gen.ts is intentionally committed so CI `tsc` passes
+# without a separate generate step (it runs before vite regenerates it).
+.tanstack/
