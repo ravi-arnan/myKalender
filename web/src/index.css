@@ -111,3 +111,81 @@ input, textarea, select {
   background: var(--color-ink);
   color: var(--color-canvas);
 }
+
+/* ── Logo reveal splash ──────────────────────────────────────────────
+   Storyboard recreated with layered CSS. Tune the timeline by editing the
+   durations/delays here (and TOTAL_MS in LogoReveal.tsx to match).        */
+
+.mk-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  background: #000;
+  overflow: hidden;
+  /* hold the finished frame, then fade the whole overlay away */
+  animation: mk-splash-fade 3.6s ease-in forwards;
+}
+
+/* Soft "moon" bloom that fades in first (storyboard frame 2). */
+.mk-splash__glow {
+  position: absolute;
+  width: min(72vmin, 460px);
+  height: min(72vmin, 460px);
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.85) 0%,
+    rgba(255, 255, 255, 0.25) 38%,
+    transparent 68%
+  );
+  filter: blur(8px);
+  opacity: 0;
+  animation: mk-glow-in 1.2s ease-out forwards;
+  will-change: opacity, transform;
+}
+
+/* The logo emerges from the glow: blurred + dark -> sharp + high-contrast. */
+.mk-splash__logo {
+  position: relative;
+  width: min(58vmin, 360px);
+  height: auto;
+  user-select: none;
+  opacity: 0;
+  animation: mk-logo-in 2.2s cubic-bezier(0.22, 0.61, 0.36, 1) 0.45s forwards;
+  will-change: opacity, filter, transform;
+}
+
+@keyframes mk-glow-in {
+  0% { opacity: 0; transform: scale(0.55); }
+  40% { opacity: 1; }
+  100% { opacity: 0.7; transform: scale(1); }
+}
+
+@keyframes mk-logo-in {
+  0% {
+    opacity: 0;
+    filter: blur(26px) brightness(0.25) contrast(0.7);
+    transform: scale(1.14);
+  }
+  45% { opacity: 1; }
+  100% {
+    opacity: 1;
+    filter: blur(0) brightness(1) contrast(1.12);
+    transform: scale(1);
+  }
+}
+
+@keyframes mk-splash-fade {
+  0%, 76% { opacity: 1; visibility: visible; }
+  100% { opacity: 0; visibility: hidden; }
+}
+
+/* Accessibility: skip the cinematic motion, just a brief fade. */
+@media (prefers-reduced-motion: reduce) {
+  .mk-splash { animation: mk-splash-fade 0.6s ease forwards; }
+  .mk-splash__glow { animation: none; opacity: 0.7; }
+  .mk-splash__logo { animation: none; opacity: 1; filter: none; transform: none; }
+}
+
