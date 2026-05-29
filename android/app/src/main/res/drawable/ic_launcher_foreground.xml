@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Bell icon centered in safe zone (66dp). -->
+    <group android:translateX="36" android:translateY="32">
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M18,4 C18,2.9 17.1,2 16,2 C14.9,2 14,2.9 14,4 L14,5.07 C10.34,6.05 7.5,9.27 7.5,13 L7.5,20 L4.5,23 L4.5,25 L27.5,25 L27.5,23 L24.5,20 L24.5,13 C24.5,9.27 21.66,6.05 18,5.07 L18,4 Z M16,30 C17.66,30 19,28.66 19,27 L13,27 C13,28.66 14.34,30 16,30 Z" />
+    </group>
+</vector>

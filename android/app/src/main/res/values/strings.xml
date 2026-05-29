@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name">myKalender</string>
+    <string name="sign_in_with_google">Masuk dengan Google</string>
+    <string name="signing_in">Menghubungkan…</string>
+    <string name="sign_out">Keluar</string>
+    <string name="upcoming_events">Jadwal Mendatang</string>
+    <string name="no_events">Belum ada jadwal. Tambah dari web di localhost atau Google Calendar.</string>
+    <string name="alarm_channel_name">Alarm Jadwal</string>
+    <string name="alarm_channel_description">Alarm pengingat untuk jadwal myKalender</string>
+    <string name="pre_alarm_channel_name">Pengingat 5 Menit</string>
+    <string name="pre_alarm_channel_description">Heads-up notifikasi 5 menit sebelum jadwal dimulai</string>
+    <string name="pre_alarm_title">Jadwal sebentar lagi</string>
+    <string name="pre_alarm_body">"%1$s" mulai 5 menit lagi.</string>
+    <string name="alarm_ringing">Pengingat berbunyi</string>
+    <string name="dismiss">Matikan</string>
+    <string name="snooze_5min">Tunda 5 menit</string>
+    <string name="loading">Memuat…</string>
+</resources>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ink">#111111</color>
+    <color name="canvas">#FFFFFF</color>
+    <color name="surface_card">#F5F5F5</color>
+    <color name="surface_dark">#101010</color>
+    <color name="hairline">#E5E7EB</color>
+    <color name="muted">#6B7280</color>
+    <color name="brand_accent">#3B82F6</color>
+</resources>
