@@ -23,25 +23,19 @@ class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val eventId = intent.getStringExtra(EXTRA_EVENT_ID) ?: return
         val title = intent.getStringExtra(EXTRA_TITLE) ?: ""
-        val whenMillis = intent.getLongExtra(EXTRA_WHEN_MILLIS, 0L)
         val soundUri = intent.getStringExtra(EXTRA_SOUND_URI)
         val alarmMode = intent.getStringExtra(EXTRA_ALARM_MODE)
 
         if (alarmMode == "notification") {
             postSoftNotification(context, eventId, title)
         } else {
-            val activityIntent = Intent(context, AlarmActivity::class.java).apply {
-                addFlags(
-                    Intent.FLAG_ACTIVITY_NEW_TASK or
-                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                        Intent.FLAG_ACTIVITY_NO_HISTORY,
-                )
-                putExtra(EXTRA_EVENT_ID, eventId)
-                putExtra(EXTRA_TITLE, title)
-                putExtra(EXTRA_WHEN_MILLIS, whenMillis)
-            }
-            context.startActivity(activityIntent)
-
+            // Start the ringer service; its notification carries a full-screen
+            // intent that launches AlarmActivity over the lockscreen. We do NOT
+            // start the activity directly here: on Android 14+ a background
+            // BroadcastReceiver can't launch an activity (BAL_BLOCK), so the
+            // full-screen intent is the reliable, OS-sanctioned path. When the
+            // device is unlocked and in use it surfaces as a loud heads-up the
+            // user taps to go full-screen; when locked/off it takes over.
             val serviceIntent = Intent(context, AlarmRingingService::class.java).apply {
                 putExtra(EXTRA_EVENT_ID, eventId)
                 putExtra(EXTRA_TITLE, title)

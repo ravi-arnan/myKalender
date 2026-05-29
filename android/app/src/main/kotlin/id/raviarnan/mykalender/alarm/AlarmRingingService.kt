@@ -35,9 +35,10 @@ class AlarmRingingService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val eventId = intent?.getStringExtra(AlarmReceiver.EXTRA_EVENT_ID) ?: ""
         val title = intent?.getStringExtra(AlarmReceiver.EXTRA_TITLE) ?: ""
         val customUri = intent?.getStringExtra(AlarmReceiver.EXTRA_SOUND_URI)
-        startInForeground(NOTIF_ID, buildNotification(title))
+        startInForeground(NOTIF_ID, buildNotification(eventId, title))
         acquireWakeLock()
         startRinging(customUri?.let { runCatching { Uri.parse(it) }.getOrNull() })
         startVibration()
@@ -51,12 +52,17 @@ class AlarmRingingService : Service() {
         super.onDestroy()
     }
 
-    private fun buildNotification(title: String): Notification {
+    private fun buildNotification(eventId: String, title: String): Notification {
+        // Carry the event identity so AlarmActivity (launched via this
+        // full-screen intent) shows the real title and Snooze targets the
+        // right event — the receiver no longer starts the activity directly.
         val openAlarm = Intent(this, AlarmActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            putExtra(AlarmReceiver.EXTRA_EVENT_ID, eventId)
+            putExtra(AlarmReceiver.EXTRA_TITLE, title)
         }
         val pi = PendingIntent.getActivity(
-            this, 0, openAlarm,
+            this, eventId.hashCode(), openAlarm,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
