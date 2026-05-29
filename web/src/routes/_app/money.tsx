@@ -14,7 +14,21 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { auth } from "../../lib/firebase";
 import { addMonths, isSameDay, MONTH_NAMES_ID, startOfMonth } from "../../lib/date-utils";
-import { EXPENSE_CATEGORIES, getCategoryOrFallback } from "../../lib/money/categories";
+import {
+  categoriesForWith,
+  iconForKey,
+  resolveCategory,
+  type Category,
+  type CustomCategory,
+} from "../../lib/money/categories";
+import {
+  createCategory,
+  deleteCategory,
+  subscribeCategories,
+  updateCategory,
+  type CustomCategoryInput,
+} from "../../lib/money/category-store";
+import { CategoryDialog } from "../../components/money/CategoryDialog";
 import { formatIDR } from "../../lib/money/format";
 import { WALLET_TYPE_OPTIONS, type Transaction, type Wallet } from "../../lib/money/types";
 import { computeWalletBalances } from "../../lib/money/balances";
@@ -57,7 +71,7 @@ export const Route = createFileRoute("/_app/money")({
   component: MoneyPage,
 });
 
-type Tab = "transaksi" | "anggaran" | "tagihan" | "dompet";
+type Tab = "transaksi" | "anggaran" | "tagihan" | "dompet" | "kategori";
 
 function MoneyPage() {
   const user = auth.currentUser!;
@@ -71,6 +85,7 @@ function MoneyPage() {
 
   const [bills, setBills] = useState<Bill[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [customCategories, setCustomCategories] = useState<CustomCategory[]>([]);
 
   const [txDialogOpen, setTxDialogOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
@@ -79,6 +94,10 @@ function MoneyPage() {
   const [billDialogOpen, setBillDialogOpen] = useState(false);
   const [editingBill, setEditingBill] = useState<Bill | null>(null);
   const [budgetCategory, setBudgetCategory] = useState<string | null>(null);
+  const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<CustomCategory | null>(
+    null,
+  );
 
   useEffect(
     () =>
@@ -90,6 +109,10 @@ function MoneyPage() {
   );
   useEffect(() => subscribeBills(user.uid, setBills), [user.uid]);
   useEffect(() => subscribeBudgets(user.uid, setBudgets), [user.uid]);
+  useEffect(
+    () => subscribeCategories(user.uid, setCustomCategories),
+    [user.uid],
+  );
   useEffect(
     () =>
       subscribeTransactions(user.uid, (next) => {
@@ -217,6 +240,29 @@ function MoneyPage() {
     if (editingBill) await deleteBill(user.uid, editingBill);
   }
 
+  function openNewCategory() {
+    setEditingCategory(null);
+    setCategoryDialogOpen(true);
+  }
+  function openEditCategory(c: CustomCategory) {
+    setEditingCategory(c);
+    setCategoryDialogOpen(true);
+  }
+  async function handleSaveCategory(input: CustomCategoryInput) {
+    if (editingCategory)
+      await updateCategory(user.uid, editingCategory.id, input);
+    else await createCategory(user.uid, input);
+  }
+  async function handleDeleteCategory() {
+    if (editingCategory) await deleteCategory(user.uid, editingCategory.id);
+  }
+
+  // Budget tab covers every expense category — built-in plus custom.
+  const expenseCategories = useMemo(
+    () => categoriesForWith("expense", customCategories),
+    [customCategories],
+  );
+
   const thisYM = currentYM();
   const hasWallets = wallets.length > 0;
 
@@ -224,14 +270,18 @@ function MoneyPage() {
     <main className="flex-1 flex flex-col overflow-hidden relative">
       {/* Top bar */}
       <div className="h-14 border-b border-hairline px-3 sm:px-5 flex items-center justify-between flex-none gap-2">
-        <h2 className="font-display text-base sm:text-xl text-ink">Keuangan</h2>
-        <div className="inline-flex items-center rounded-md border border-hairline overflow-hidden">
-          {(["transaksi", "anggaran", "tagihan", "dompet"] as const).map((t) => (
+        <h2 className="font-display text-base sm:text-xl text-ink flex-none">
+          Keuangan
+        </h2>
+        <div className="flex items-center rounded-md border border-hairline overflow-x-auto min-w-0">
+          {(
+            ["transaksi", "anggaran", "tagihan", "dompet", "kategori"] as const
+          ).map((t) => (
             <button
               key={t}
               type="button"
               onClick={() => setTab(t)}
-              className={`px-2.5 py-1.5 text-xs sm:text-sm font-medium transition border-r border-hairline last:border-r-0 capitalize ${
+              className={`px-2.5 py-1.5 text-xs sm:text-sm font-medium transition border-r border-hairline last:border-r-0 capitalize whitespace-nowrap shrink-0 ${
                 tab === t
                   ? "bg-ink text-on-primary"
                   : "text-body hover:bg-surface-soft hover:text-ink"
@@ -316,6 +366,11 @@ function MoneyPage() {
                         <TransactionRow
                           key={t.id}
                           tx={t}
+                          category={resolveCategory(
+                            t.categoryId,
+                            t.type,
+                            customCategories,
+                          )}
                           walletName={
                             wallets.find((w) => w.id === t.walletId)?.name ?? "—"
                           }
@@ -371,10 +426,10 @@ function MoneyPage() {
             </div>
 
             <div className="space-y-3">
-              {EXPENSE_CATEGORIES.map((cat) => (
+              {expenseCategories.map((cat) => (
                 <BudgetRow
                   key={cat.id}
-                  categoryId={cat.id}
+                  category={cat}
                   spent={spendByCategory.get(cat.id) ?? 0}
                   budget={budgets.find((b) => b.categoryId === cat.id)?.amount ?? 0}
                   onEdit={() => setBudgetCategory(cat.id)}
@@ -413,7 +468,7 @@ function MoneyPage() {
             </button>
           </div>
         </div>
-      ) : (
+      ) : tab === "dompet" ? (
         /* Dompet tab */
         <div className="flex-1 overflow-auto">
           <div className="max-w-2xl mx-auto p-4 sm:p-6 space-y-3">
@@ -434,6 +489,33 @@ function MoneyPage() {
             </button>
           </div>
         </div>
+      ) : (
+        /* Kategori tab — manage custom categories */
+        <div className="flex-1 overflow-auto">
+          <div className="max-w-2xl mx-auto p-4 sm:p-6 space-y-5">
+            <p className="text-xs text-muted">
+              Kategori bawaan selalu tersedia. Tambah kategori sendiri di sini —
+              langsung muncul saat mencatat transaksi.
+            </p>
+            <CategorySection
+              title="Pengeluaran"
+              categories={customCategories.filter((c) => c.kind === "expense")}
+              onEdit={openEditCategory}
+            />
+            <CategorySection
+              title="Pemasukan"
+              categories={customCategories.filter((c) => c.kind === "income")}
+              onEdit={openEditCategory}
+            />
+            <button
+              type="button"
+              onClick={openNewCategory}
+              className="w-full rounded-xl border border-dashed border-hairline py-3 text-sm font-medium text-muted hover:text-ink hover:border-ink transition flex items-center justify-center gap-2"
+            >
+              <Plus size={16} /> Tambah kategori
+            </button>
+          </div>
+        </div>
       )}
 
       {/* FAB: add transaction (only when a wallet exists, on the transaksi tab) */}
@@ -451,6 +533,7 @@ function MoneyPage() {
       {txDialogOpen ? (
         <TransactionDialog
           wallets={wallets}
+          customCategories={customCategories}
           existing={editingTx ?? undefined}
           initialDate={newTxDate}
           onClose={() => setTxDialogOpen(false)}
@@ -481,7 +564,7 @@ function MoneyPage() {
       {budgetCategory ? (
         <BudgetDialog
           categoryLabel={
-            EXPENSE_CATEGORIES.find((c) => c.id === budgetCategory)?.label ?? ""
+            resolveCategory(budgetCategory, "expense", customCategories).label
           }
           currentAmount={
             budgets.find((b) => b.categoryId === budgetCategory)?.amount ?? 0
@@ -490,22 +573,31 @@ function MoneyPage() {
           onSave={(amount) => setBudget(user.uid, budgetCategory, amount)}
         />
       ) : null}
+
+      {categoryDialogOpen ? (
+        <CategoryDialog
+          existing={editingCategory ?? undefined}
+          onClose={() => setCategoryDialogOpen(false)}
+          onSave={handleSaveCategory}
+          onDelete={editingCategory ? handleDeleteCategory : undefined}
+        />
+      ) : null}
     </main>
   );
 }
 
 function BudgetRow({
-  categoryId,
+  category,
   spent,
   budget,
   onEdit,
 }: {
-  categoryId: string;
+  category: Category;
   spent: number;
   budget: number;
   onEdit: () => void;
 }) {
-  const cat = getCategoryOrFallback(categoryId, "expense");
+  const cat = category;
   const Icon = cat.icon;
   const pct = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
   const over = budget > 0 && spent > budget;
@@ -547,6 +639,48 @@ function BudgetRow({
         </div>
       ) : null}
     </button>
+  );
+}
+
+function CategorySection({
+  title,
+  categories,
+  onEdit,
+}: {
+  title: string;
+  categories: CustomCategory[];
+  onEdit: (c: CustomCategory) => void;
+}) {
+  return (
+    <div>
+      <p className="text-sm font-semibold text-ink mb-2">{title}</p>
+      {categories.length === 0 ? (
+        <p className="text-xs text-muted-soft">Belum ada kategori custom.</p>
+      ) : (
+        <div className="rounded-xl border border-hairline overflow-hidden divide-y divide-hairline">
+          {categories.map((c) => {
+            const Icon = iconForKey(c.icon);
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => onEdit(c)}
+                className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-surface-soft transition"
+              >
+                <span
+                  className="w-9 h-9 rounded-full flex items-center justify-center flex-none"
+                  style={{ backgroundColor: c.color + "22", color: c.color }}
+                >
+                  <Icon size={17} />
+                </span>
+                <span className="text-sm text-ink flex-1 truncate">{c.label}</span>
+                <Pencil size={15} className="text-muted flex-none" />
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -640,18 +774,20 @@ function SummaryChip({
 
 function TransactionRow({
   tx,
+  category,
   walletName,
   toWalletName,
   onClick,
 }: {
   tx: Transaction;
+  category: Category;
   walletName: string;
   toWalletName?: string;
   onClick: () => void;
 }) {
   const isTransfer = tx.type === "transfer";
   const isIncome = tx.type === "income";
-  const cat = getCategoryOrFallback(tx.categoryId, tx.type);
+  const cat = category;
   const Icon = isTransfer ? ArrowLeftRight : cat.icon;
   const tint = isTransfer ? "#3b82f6" : cat.color;
   return (

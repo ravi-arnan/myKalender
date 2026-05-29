@@ -171,6 +171,35 @@ class MoneyRepository(
         ).await()
     }
 
+    // ----------------------------------------------------------- Categories --
+
+    fun categories(uid: String): Flow<List<CustomCategory>> = callbackFlow {
+        val reg = col(uid, "categories")
+            .orderBy("createdAt", Query.Direction.ASCENDING)
+            .addSnapshotListener { snap, err ->
+                if (err != null) { close(err); return@addSnapshotListener }
+                if (snap == null) return@addSnapshotListener
+                trySend(snap.documents.mapNotNull { d ->
+                    d.toObject(CustomCategory::class.java)?.copy(id = d.id)
+                })
+            }
+        awaitClose { reg.remove() }
+    }
+
+    suspend fun createCategory(uid: String, input: CustomCategoryInput) {
+        col(uid, "categories").add(input.toMap() + serverStamps()).await()
+    }
+
+    suspend fun updateCategory(uid: String, id: String, input: CustomCategoryInput) {
+        col(uid, "categories").document(id)
+            .update(input.toMap() + mapOf("updatedAt" to FieldValue.serverTimestamp()))
+            .await()
+    }
+
+    suspend fun deleteCategory(uid: String, id: String) {
+        col(uid, "categories").document(id).delete().await()
+    }
+
     // -------------------------------------------------------------- Helpers --
 
     private fun billEvent(input: BillInput): EventInput {
@@ -218,5 +247,12 @@ class MoneyRepository(
         "dayOfMonth" to dayOfMonth,
         "reminderOffsetMinutes" to reminderOffsetMinutes,
         "alarmMode" to alarmMode,
+    )
+
+    private fun CustomCategoryInput.toMap(): Map<String, Any?> = mapOf(
+        "label" to label,
+        "kind" to kind,
+        "color" to color,
+        "icon" to icon,
     )
 }

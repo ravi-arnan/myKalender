@@ -30,10 +30,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.google.firebase.Timestamp
+import id.raviarnan.mykalender.data.money.CustomCategory
 import id.raviarnan.mykalender.data.money.Transaction
 import id.raviarnan.mykalender.data.money.TransactionInput
 import id.raviarnan.mykalender.data.money.Wallet
-import id.raviarnan.mykalender.data.money.categoriesFor
+import id.raviarnan.mykalender.data.money.categoriesForWith
 import id.raviarnan.mykalender.data.money.formatThousands
 import id.raviarnan.mykalender.data.money.parseIDR
 import java.text.SimpleDateFormat
@@ -44,6 +45,7 @@ import java.util.Locale
 @Composable
 fun TransactionDialog(
     wallets: List<Wallet>,
+    customCategories: List<CustomCategory>,
     existing: Transaction?,
     initialDateMillis: Long,
     onDismiss: () -> Unit,
@@ -55,7 +57,10 @@ fun TransactionDialog(
         mutableStateOf(existing?.let { formatThousands(it.amount) } ?: "")
     }
     var categoryId by remember {
-        mutableStateOf(existing?.categoryId ?: categoriesFor(existing?.type ?: "expense").first().id)
+        mutableStateOf(
+            existing?.categoryId
+                ?: categoriesForWith(existing?.type ?: "expense", customCategories).first().id,
+        )
     }
     var walletId by remember {
         mutableStateOf(existing?.walletId ?: wallets.firstOrNull()?.id ?: "")
@@ -76,12 +81,13 @@ fun TransactionDialog(
     var showDatePicker by remember { mutableStateOf(false) }
 
     val dateFmt = remember { SimpleDateFormat("EEEE, d MMM yyyy", Locale("id", "ID")) }
-    val categories = categoriesFor(type)
+    val categories = categoriesForWith(type, customCategories)
 
     fun switchType(next: String) {
         type = next
-        if (categoriesFor(next).none { it.id == categoryId }) {
-            categoryId = categoriesFor(next).first().id
+        val valid = categoriesForWith(next, customCategories)
+        if (valid.none { it.id == categoryId }) {
+            categoryId = valid.first().id
         }
     }
 

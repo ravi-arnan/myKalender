@@ -1,16 +1,26 @@
 import {
   Briefcase,
   Car,
+  Coffee,
+  Dumbbell,
   Film,
   Gift,
+  GraduationCap,
   HeartPulse,
   HelpingHand,
   House,
   MoreHorizontal,
+  PawPrint,
+  PiggyBank,
+  Plane,
   Receipt,
   ShoppingBag,
+  ShoppingCart,
+  Smartphone,
+  Tag,
   TrendingUp,
   Utensils,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 import type { TransactionType } from "./types";
@@ -21,6 +31,46 @@ export interface Category {
   kind: TransactionType;
   icon: LucideIcon;
   color: string;
+}
+
+/**
+ * A user-defined category stored in Firestore (`users/{uid}/categories`).
+ * `icon` is a key into {@link CATEGORY_ICONS}; Android ignores it (it renders
+ * categories by color only) so a missing/unknown key falls back to a tag.
+ */
+export interface CustomCategory {
+  id: string;
+  label: string;
+  kind: TransactionType;
+  color: string;
+  icon: string;
+}
+
+/** Curated icon set offered when creating a custom category (web only). */
+export const CATEGORY_ICONS: Record<string, LucideIcon> = {
+  tag: Tag,
+  utensils: Utensils,
+  cart: ShoppingCart,
+  car: Car,
+  home: House,
+  coffee: Coffee,
+  film: Film,
+  plane: Plane,
+  heart: HeartPulse,
+  gift: Gift,
+  briefcase: Briefcase,
+  wallet: Wallet,
+  piggy: PiggyBank,
+  phone: Smartphone,
+  dumbbell: Dumbbell,
+  pet: PawPrint,
+  study: GraduationCap,
+};
+
+export const CATEGORY_ICON_KEYS = Object.keys(CATEGORY_ICONS);
+
+export function iconForKey(key?: string): LucideIcon {
+  return CATEGORY_ICONS[key ?? ""] ?? Tag;
 }
 
 /**
@@ -61,4 +111,39 @@ export function getCategoryOrFallback(id: string, kind: TransactionType): Catego
     getCategory(id) ??
     (kind === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES).at(-1)!
   );
+}
+
+function toCategory(c: CustomCategory): Category {
+  return {
+    id: c.id,
+    label: c.label,
+    kind: c.kind,
+    color: c.color,
+    icon: iconForKey(c.icon),
+  };
+}
+
+/**
+ * Built-in categories for [kind] plus the user's custom ones, with the generic
+ * "Lainnya" built-in kept last so it stays the natural fallback at the end.
+ */
+export function categoriesForWith(
+  kind: TransactionType,
+  custom: CustomCategory[],
+): Category[] {
+  const builtins = categoriesFor(kind);
+  const customCats = custom.filter((c) => c.kind === kind).map(toCategory);
+  return [...builtins.slice(0, -1), ...customCats, builtins.at(-1)!];
+}
+
+/** Resolve a category id against both built-ins and the custom list. */
+export function resolveCategory(
+  id: string,
+  kind: TransactionType,
+  custom: CustomCategory[],
+): Category {
+  const builtin = getCategory(id);
+  if (builtin) return builtin;
+  const c = custom.find((x) => x.id === id);
+  return c ? toCategory(c) : getCategoryOrFallback(id, kind);
 }

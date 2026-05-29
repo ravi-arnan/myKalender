@@ -121,7 +121,12 @@ kode terisolasi (`lib/money/`, `components/money/`) agar bisa diekstrak nanti.
 - [x] **myDuit v2 Android** — done 2026-05-29
   - **Transfer antar dompet** — toggle tipe ketiga di TransactionDialog (Dari → Ke dompet), `toWalletId` di model + repo, render baris transfer (ikon SwapHoriz, jumlah netral)
   - **Anggaran bulanan** — tab "Anggaran", `MoneyRepository.budgets`/`setBudget` (upsert by categoryId), `BudgetDialog`, progress bar per kategori + laporan pengeluaran bulanan
-- [ ] **myDuit v2 sisa** — kategori custom, grafik visual (pie/line)
+- [x] **Kategori custom (web + Android)** — done 2026-05-29
+  - Koleksi Firestore `users/{uid}/categories` (custom; kategori bawaan tetap di kode)
+  - Web: registry ikon (17 pilihan) + helper murni `categoriesForWith`/`resolveCategory`, `category-store.ts` (CRUD), `CategoryDialog` (nama/jenis/warna/ikon), tab "kategori" untuk kelola
+  - Android: model `CustomCategory` + repo CRUD + `CategoryDialog` (nama/jenis/warna — tanpa ikon, baris kategori dirender per-warna), tab "Kategori" (tab di-scroll horizontal)
+  - Kategori custom muncul di picker transaksi, baris transaksi, dan tab anggaran di kedua platform
+- [ ] **myDuit v2 sisa** — grafik visual (pie/line)
 
 ### Polish kecil
 - [x] **Theme picker di Android** — done 2026-05-29

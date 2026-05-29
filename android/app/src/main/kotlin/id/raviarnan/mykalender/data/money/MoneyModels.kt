@@ -114,6 +114,33 @@ data class TxCategory(
     val color: String,
 )
 
+/**
+ * A user-defined category stored in Firestore (`users/{uid}/categories`).
+ * `icon` is kept for parity with web (which renders an icon) but unused on
+ * Android, where categories are shown by color only.
+ */
+data class CustomCategory(
+    val id: String = "",
+    val label: String = "",
+    val kind: String = "expense",
+    val color: String = "#6b7280",
+    val icon: String = "tag",
+) {
+    fun toTxCategory(): TxCategory = TxCategory(id, label, kind, color)
+}
+
+data class CustomCategoryInput(
+    val label: String,
+    val kind: String,
+    val color: String,
+    val icon: String = "tag",
+)
+
+val CATEGORY_COLORS = listOf(
+    "#fb923c", "#3b82f6", "#ec4899", "#8b5cf6", "#14b8a6",
+    "#ef4444", "#f59e0b", "#10b981", "#6366f1", "#6b7280",
+)
+
 val EXPENSE_CATEGORIES = listOf(
     TxCategory("food", "Makan & Minum", "expense", "#fb923c"),
     TxCategory("transport", "Transport", "expense", "#3b82f6"),
@@ -140,6 +167,24 @@ fun categoryById(id: String): TxCategory? =
 
 fun categoryOrFallback(id: String, kind: String): TxCategory =
     categoryById(id) ?: categoriesFor(kind).last()
+
+/** Built-in categories for [kind] plus the user's custom ones; the generic
+ *  "Lainnya" built-in stays last so it remains the fallback at the end. */
+fun categoriesForWith(kind: String, custom: List<CustomCategory>): List<TxCategory> {
+    val builtins = categoriesFor(kind)
+    val customCats = custom.filter { it.kind == kind }.map { it.toTxCategory() }
+    return builtins.dropLast(1) + customCats + builtins.last()
+}
+
+/** Resolve a category id against built-ins and the custom list. */
+fun categoryOrFallbackWith(
+    id: String,
+    kind: String,
+    custom: List<CustomCategory>,
+): TxCategory =
+    categoryById(id)
+        ?: custom.find { it.id == id }?.toTxCategory()
+        ?: categoriesFor(kind).last()
 
 // ---------------------------------------------------------------- Money -----
 

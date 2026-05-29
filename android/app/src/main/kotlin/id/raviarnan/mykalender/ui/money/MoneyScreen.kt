@@ -4,6 +4,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,11 +54,13 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import id.raviarnan.mykalender.MoneyViewModel
 import id.raviarnan.mykalender.data.money.Bill
 import id.raviarnan.mykalender.data.money.Budget
-import id.raviarnan.mykalender.data.money.EXPENSE_CATEGORIES
+import id.raviarnan.mykalender.data.money.CustomCategory
 import id.raviarnan.mykalender.data.money.Transaction
+import id.raviarnan.mykalender.data.money.TxCategory
 import id.raviarnan.mykalender.data.money.Wallet
 import id.raviarnan.mykalender.data.money.WALLET_TYPE_LABELS
-import id.raviarnan.mykalender.data.money.categoryOrFallback
+import id.raviarnan.mykalender.data.money.categoriesForWith
+import id.raviarnan.mykalender.data.money.categoryOrFallbackWith
 import id.raviarnan.mykalender.data.money.computeWalletBalances
 import id.raviarnan.mykalender.data.money.currentYM
 import id.raviarnan.mykalender.data.money.formatIDR
@@ -72,6 +76,7 @@ private enum class MoneyTab(val label: String) {
     Anggaran("Anggaran"),
     Tagihan("Tagihan"),
     Dompet("Dompet"),
+    Kategori("Kategori"),
 }
 
 private fun startOfMonthMillis(now: Long = System.currentTimeMillis()): Long {
@@ -102,6 +107,8 @@ fun MoneyScreen(
     var editingBill by remember { mutableStateOf<Bill?>(null) }
     var showBillDialog by remember { mutableStateOf(false) }
     var budgetCategory by remember { mutableStateOf<String?>(null) }
+    var editingCategory by remember { mutableStateOf<CustomCategory?>(null) }
+    var showCategoryDialog by remember { mutableStateOf(false) }
 
     val balances = remember(state.wallets, state.transactions) {
         computeWalletBalances(state.wallets, state.transactions)
@@ -114,6 +121,7 @@ fun MoneyScreen(
             MoneyTab.Anggaran -> {} // budgets are edited per-category row
             MoneyTab.Tagihan -> { editingBill = null; showBillDialog = true }
             MoneyTab.Dompet -> { editingWallet = null; showWalletDialog = true }
+            MoneyTab.Kategori -> { editingCategory = null; showCategoryDialog = true }
         }
     }
 
@@ -139,9 +147,11 @@ fun MoneyScreen(
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 
-        // Sub-tabs
+        // Sub-tabs (scroll horizontally so all chips stay reachable)
         Row(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+            modifier = Modifier
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             MoneyTab.entries.forEach { t ->
@@ -155,6 +165,7 @@ fun MoneyScreen(
             tab == MoneyTab.Transaksi -> TransaksiTab(
                 wallets = state.wallets,
                 transactions = state.transactions,
+                customCategories = state.customCategories,
                 balances = balances,
                 viewMonth = viewMonth,
                 onPrevMonth = { viewMonth = addMonth(viewMonth, -1) },
@@ -164,6 +175,7 @@ fun MoneyScreen(
             tab == MoneyTab.Anggaran -> AnggaranTab(
                 transactions = state.transactions,
                 budgets = state.budgets,
+                customCategories = state.customCategories,
                 viewMonth = viewMonth,
                 onPrevMonth = { viewMonth = addMonth(viewMonth, -1) },
                 onNextMonth = { viewMonth = addMonth(viewMonth, 1) },
@@ -176,11 +188,16 @@ fun MoneyScreen(
                 onPay = { viewModel.markBillPaid(it) },
                 onAdd = { editingBill = null; showBillDialog = true },
             )
-            else -> DompetTab(
+            tab == MoneyTab.Dompet -> DompetTab(
                 wallets = state.wallets,
                 balances = balances,
                 onEdit = { editingWallet = it; showWalletDialog = true },
                 onAdd = { editingWallet = null; showWalletDialog = true },
+            )
+            else -> KategoriTab(
+                categories = state.customCategories,
+                onEdit = { editingCategory = it; showCategoryDialog = true },
+                onAdd = { editingCategory = null; showCategoryDialog = true },
             )
         }
     }
@@ -188,6 +205,7 @@ fun MoneyScreen(
     if (showTxDialog) {
         TransactionDialog(
             wallets = state.wallets,
+            customCategories = state.customCategories,
             existing = editingTx,
             initialDateMillis = System.currentTimeMillis(),
             onDismiss = { showTxDialog = false },
@@ -229,12 +247,25 @@ fun MoneyScreen(
     }
     budgetCategory?.let { catId ->
         BudgetDialog(
-            categoryLabel = categoryOrFallback(catId, "expense").label,
+            categoryLabel = categoryOrFallbackWith(catId, "expense", state.customCategories).label,
             currentAmount = state.budgets.find { it.categoryId == catId }?.amount ?: 0L,
             onDismiss = { budgetCategory = null },
             onSave = { amount ->
                 viewModel.setBudget(catId, amount)
                 budgetCategory = null
+            },
+        )
+    }
+    if (showCategoryDialog) {
+        CategoryDialog(
+            existing = editingCategory,
+            onDismiss = { showCategoryDialog = false },
+            onSave = {
+                viewModel.saveCategory(editingCategory, it)
+                showCategoryDialog = false; editingCategory = null
+            },
+            onDelete = editingCategory?.let { c ->
+                { viewModel.deleteCategory(c.id); showCategoryDialog = false; editingCategory = null }
             },
         )
     }
@@ -267,6 +298,7 @@ private fun TabChip(label: String, selected: Boolean, onClick: () -> Unit) {
 private fun TransaksiTab(
     wallets: List<Wallet>,
     transactions: List<Transaction>,
+    customCategories: List<CustomCategory>,
     balances: Map<String, Long>,
     viewMonth: Long,
     onPrevMonth: () -> Unit,
@@ -366,6 +398,7 @@ private fun TransaksiTab(
                     item(key = tx.id) {
                         TransactionRow(
                             tx = tx,
+                            category = categoryOrFallbackWith(tx.categoryId, tx.type, customCategories),
                             walletName = wallets.find { it.id == tx.walletId }?.name ?: "—",
                             toWalletName = tx.toWalletId?.let { id ->
                                 wallets.find { it.id == id }?.name ?: "—"
@@ -395,12 +428,13 @@ private fun SummaryItem(label: String, value: Long, income: Boolean) {
 @Composable
 private fun TransactionRow(
     tx: Transaction,
+    category: TxCategory,
     walletName: String,
     toWalletName: String?,
     onClick: () -> Unit,
 ) {
     val isTransfer = tx.type == "transfer"
-    val cat = categoryOrFallback(tx.categoryId, tx.type)
+    val cat = category
     val income = tx.type == "income"
     val tint = if (isTransfer) "#3b82f6" else cat.color
     Card(
@@ -464,11 +498,15 @@ private fun TransactionRow(
 private fun AnggaranTab(
     transactions: List<Transaction>,
     budgets: List<Budget>,
+    customCategories: List<CustomCategory>,
     viewMonth: Long,
     onPrevMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onEditBudget: (String) -> Unit,
 ) {
+    val expenseCats = remember(customCategories) {
+        categoriesForWith("expense", customCategories)
+    }
     val monthCal = remember(viewMonth) { Calendar.getInstance().apply { timeInMillis = viewMonth } }
     val monthExpense = remember(transactions, viewMonth) {
         transactions.filter { t ->
@@ -520,9 +558,9 @@ private fun AnggaranTab(
                 IconButton(onClick = onNextMonth) { Icon(Icons.Filled.ChevronRight, "Bulan berikutnya") }
             }
         }
-        items(EXPENSE_CATEGORIES, key = { it.id }) { cat ->
+        items(expenseCats, key = { it.id }) { cat ->
             BudgetRow(
-                categoryId = cat.id,
+                category = cat,
                 spent = spendByCategory[cat.id] ?: 0L,
                 budget = budgets.find { it.categoryId == cat.id }?.amount ?: 0L,
                 onEdit = { onEditBudget(cat.id) },
@@ -533,8 +571,8 @@ private fun AnggaranTab(
 }
 
 @Composable
-private fun BudgetRow(categoryId: String, spent: Long, budget: Long, onEdit: () -> Unit) {
-    val cat = categoryOrFallback(categoryId, "expense")
+private fun BudgetRow(category: TxCategory, spent: Long, budget: Long, onEdit: () -> Unit) {
+    val cat = category
     val over = budget > 0 && spent > budget
     val pct = if (budget > 0) (spent.toFloat() / budget.toFloat()).coerceIn(0f, 1f) else 0f
     val accent = if (over) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground
@@ -726,6 +764,96 @@ private fun DompetTab(
         }
         item { AddRow("Tambah dompet", onAdd) }
         item { Spacer(Modifier.height(80.dp)) }
+    }
+}
+
+@Composable
+private fun KategoriTab(
+    categories: List<CustomCategory>,
+    onEdit: (CustomCategory) -> Unit,
+    onAdd: () -> Unit,
+) {
+    val expense = categories.filter { it.kind == "expense" }
+    val income = categories.filter { it.kind == "income" }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        item {
+            Text(
+                text = "Kategori bawaan selalu tersedia. Tambah kategori sendiri di sini — langsung muncul saat mencatat transaksi.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        item { CategorySectionLabel("Pengeluaran") }
+        if (expense.isEmpty()) {
+            item { CategoryEmptyHint() }
+        } else {
+            items(expense, key = { it.id }) { CategoryRow(it, onEdit) }
+        }
+        item { CategorySectionLabel("Pemasukan") }
+        if (income.isEmpty()) {
+            item { CategoryEmptyHint() }
+        } else {
+            items(income, key = { it.id }) { CategoryRow(it, onEdit) }
+        }
+        item { AddRow("Tambah kategori", onAdd) }
+        item { Spacer(Modifier.height(80.dp)) }
+    }
+}
+
+@Composable
+private fun CategorySectionLabel(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onBackground,
+        modifier = Modifier.padding(top = 4.dp),
+    )
+}
+
+@Composable
+private fun CategoryEmptyHint() {
+    Text(
+        text = "Belum ada kategori custom.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+@Composable
+private fun CategoryRow(category: CustomCategory, onEdit: (CustomCategory) -> Unit) {
+    Card(
+        onClick = { onEdit(category) },
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(0.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+    ) {
+        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(colorFromHex(category.color).copy(alpha = 0.18f)),
+            )
+            Spacer(Modifier.size(12.dp))
+            Text(
+                text = category.label,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                Icons.Filled.Edit,
+                contentDescription = "Edit kategori",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
+        }
     }
 }
 

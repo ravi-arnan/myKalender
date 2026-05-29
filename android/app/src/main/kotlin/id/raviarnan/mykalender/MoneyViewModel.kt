@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import id.raviarnan.mykalender.data.money.Bill
 import id.raviarnan.mykalender.data.money.BillInput
 import id.raviarnan.mykalender.data.money.Budget
+import id.raviarnan.mykalender.data.money.CustomCategory
+import id.raviarnan.mykalender.data.money.CustomCategoryInput
 import id.raviarnan.mykalender.data.money.MoneyRepository
 import id.raviarnan.mykalender.data.money.Transaction
 import id.raviarnan.mykalender.data.money.TransactionInput
@@ -24,6 +26,7 @@ data class MoneyUiState(
     val transactions: List<Transaction> = emptyList(),
     val bills: List<Bill> = emptyList(),
     val budgets: List<Budget> = emptyList(),
+    val customCategories: List<CustomCategory> = emptyList(),
     val walletsLoaded: Boolean = false,
     val txLoaded: Boolean = false,
     val error: String? = null,
@@ -68,6 +71,11 @@ class MoneyViewModel(application: Application) : AndroidViewModel(application) {
                 _state.update { it.copy(budgets = list) }
             }
         }
+        jobs += viewModelScope.launch {
+            repo.categories(uid).collectLatest { list ->
+                _state.update { it.copy(customCategories = list) }
+            }
+        }
     }
 
     private fun run(block: suspend (uid: String) -> Unit) {
@@ -107,4 +115,11 @@ class MoneyViewModel(application: Application) : AndroidViewModel(application) {
     fun setBudget(categoryId: String, amount: Long) = run { uid ->
         repo.setBudget(uid, categoryId, amount)
     }
+
+    // Categories
+    fun saveCategory(existing: CustomCategory?, input: CustomCategoryInput) = run { uid ->
+        if (existing == null) repo.createCategory(uid, input)
+        else repo.updateCategory(uid, existing.id, input)
+    }
+    fun deleteCategory(id: String) = run { uid -> repo.deleteCategory(uid, id) }
 }

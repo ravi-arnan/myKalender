@@ -2,7 +2,7 @@ import { CalendarDays, FileText, Wallet as WalletIcon, X } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { Timestamp } from "firebase/firestore";
 import { formatDateInput, parseDateTimeInput } from "../../lib/date-utils";
-import { categoriesFor } from "../../lib/money/categories";
+import { categoriesForWith, type CustomCategory } from "../../lib/money/categories";
 import { formatThousands, parseIDR } from "../../lib/money/format";
 import type {
   Transaction,
@@ -13,6 +13,7 @@ import type {
 
 interface TransactionDialogProps {
   wallets: Wallet[];
+  customCategories: CustomCategory[];
   existing?: Transaction;
   initialDate: Date;
   defaultWalletId?: string;
@@ -23,6 +24,7 @@ interface TransactionDialogProps {
 
 export function TransactionDialog({
   wallets,
+  customCategories,
   existing,
   initialDate,
   defaultWalletId,
@@ -35,7 +37,8 @@ export function TransactionDialog({
     existing ? formatThousands(existing.amount) : "",
   );
   const [categoryId, setCategoryId] = useState(
-    existing?.categoryId ?? categoriesFor(existing?.type ?? "expense")[0].id,
+    existing?.categoryId ??
+      categoriesForWith(existing?.type ?? "expense", customCategories)[0].id,
   );
   const [walletId, setWalletId] = useState(
     existing?.walletId ?? defaultWalletId ?? wallets[0]?.id ?? "",
@@ -50,7 +53,7 @@ export function TransactionDialog({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const categories = categoriesFor(type);
+  const categories = categoriesForWith(type, customCategories);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -63,7 +66,7 @@ export function TransactionDialog({
   function switchType(next: TransactionType) {
     setType(next);
     // Keep the category valid for the new type.
-    const validIds = categoriesFor(next).map((c) => c.id);
+    const validIds = categoriesForWith(next, customCategories).map((c) => c.id);
     if (!validIds.includes(categoryId)) setCategoryId(validIds[0]);
   }
 
