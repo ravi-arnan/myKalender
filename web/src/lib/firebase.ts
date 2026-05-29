@@ -1,5 +1,11 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, type UserCredential } from "firebase/auth";
+import {
+  getAuth,
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  type User,
+  type UserCredential,
+} from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -18,6 +24,20 @@ export const db = getFirestore(firebaseApp);
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.addScope("https://www.googleapis.com/auth/calendar.readonly");
 googleProvider.addScope("https://www.googleapis.com/auth/calendar.events");
+
+/**
+ * Resolves once Firebase has hydrated the persisted auth state (it reads from
+ * localStorage asynchronously on startup). Use this in route `beforeLoad`
+ * guards so the initial `auth.currentUser` isn't read before it's ready.
+ */
+export function waitForAuthReady(): Promise<User | null> {
+  return new Promise((resolve) => {
+    const unsub = onAuthStateChanged(auth, (user) => {
+      unsub();
+      resolve(user);
+    });
+  });
+}
 
 const TOKEN_STORAGE_KEY = "mykalender:gcal_token";
 const TOKEN_EXPIRY_KEY = "mykalender:gcal_token_expiry";

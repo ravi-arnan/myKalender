@@ -1,4 +1,9 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  redirect,
+  useNavigate,
+} from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { signInWithPopup } from "firebase/auth";
 import { useState } from "react";
@@ -6,9 +11,15 @@ import {
   auth,
   cacheAccessTokenFromCredential,
   googleProvider,
+  waitForAuthReady,
 } from "../lib/firebase";
 
 export const Route = createFileRoute("/login")({
+  beforeLoad: async () => {
+    // Already signed in? Skip the login screen entirely.
+    const user = await waitForAuthReady();
+    if (user) throw redirect({ to: "/calendar" });
+  },
   component: LoginPage,
 });
 
