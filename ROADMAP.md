@@ -79,6 +79,38 @@ Status: **Phase 1 (Web) + Phase 2 (Android alarm) selesai 2026-05-29.** Core req
   - updateEvent dengan gcalEventId → PATCH GCal
   - deleteEvent dengan gcalEventId → DELETE GCal (Firestore + GCal)
   - Uncheck checkbox di event yang sudah pushed → hapus dari GCal, tetap di myKalender
+- [x] **AI Schedule Generator** — done 2026-05-29
+  - Route `/ai` dengan textarea natural language + tombol Generate
+  - GitHub Models `openai/gpt-4o-mini` via `https://models.github.ai/inference`
+  - Token: `VITE_GITHUB_MODELS_TOKEN` di `.env.local` (PAT scope `models:read`)
+  - Structured output via `response_format: json_schema` (strict mode)
+  - Preview cards (checkbox per event) sebelum apply
+  - Optional checkbox sinkron ke Google Calendar di apply
+  - Recurrence presets: none/daily/weekdays/weekly/monthly
+  - Reminder offset snap ke preset terdekat (0/5/10/20/30/60/1440)
+  - Source = "manual", alarmMode = "alarm" → alarm Android fire otomatis via Firestore listener
+- [x] **Mode alarm vs notifikasi per event** — done 2026-05-29
+  - Field `alarmMode` ("alarm" | "notification") di Event (web + Android)
+  - Web EventDialog + Android EventDialog: pilih "Alarm beneran" vs "Notifikasi biasa"
+  - Android: channel `alarm_soft` untuk heads-up notif (tidak loud / full-screen)
+- [x] **Auth UX — skip login saat sudah masuk** — done 2026-05-29
+  - `/login` redirect ke `/calendar` kalau sudah sign-in (`waitForAuthReady` di beforeLoad)
+  - Landing page: CTA berubah "Masuk" → "Buka Kalender" saat authenticated (`useAuthUser`)
+- [x] **Navigasi trackpad di kalender** — done 2026-05-29
+  - `useWheelNav`: swipe 2 jari horizontal ganti periode (mirip Google Calendar)
+  - Vertikal ganti bulan khusus month view; week/day tetap scroll grid jam
+  - Threshold + cooldown supaya 1 swipe = 1 langkah; `preventDefault` cegah back/forward browser
+- [x] **Logo reveal splash** — done 2026-05-29 (pure CSS, sekali per sesi, hormati prefers-reduced-motion)
+
+### myDuit — modul keuangan (web) — MVP done 2026-05-29
+Modul pencatatan keuangan terintegrasi di dalam myKalender (route `/money`),
+kode terisolasi (`lib/money/`, `components/money/`) agar bisa diekstrak nanti.
+- [x] **Dompet** — buat/edit (cash/bank/e-wallet), saldo awal, warna; saldo dihitung realtime
+- [x] **Transaksi** — pemasukan/pengeluaran CRUD, kategori default (8 keluar + 4 masuk), grup per hari, navigasi bulan (+ swipe trackpad)
+- [x] **Tagihan berulang → alarm** — bill bikin CalendarEvent recurring bulanan di koleksi `events` → pipeline alarm Android/web fire otomatis (zero perubahan Android); "Tandai lunas" → catat pengeluaran + anti dobel-bayar (`lastPaidYM`)
+- [x] **Data layer teruji** — `computeWalletBalances` + format IDR diuji unit (16/16 lulus)
+- [ ] **myDuit v2** — transfer antar dompet, budget bulanan, grafik/laporan, kategori custom
+- [ ] **myDuit Android** — modul Kotlin/Compose (tujuan lintas-perangkat)
 
 ### Polish kecil
 - [x] **Theme picker di Android** — done 2026-05-29
