@@ -28,6 +28,11 @@ npm-debug.log*
 yarn-debug.log*
 pnpm-debug.log*
 
+# Local SQLite (dev/tooling scratch)
+*.db
+*.db-wal
+*.db-shm
+
 # Firebase
 .firebase/
 firebase-debug.log*
