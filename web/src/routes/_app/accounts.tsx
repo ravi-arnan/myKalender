@@ -256,7 +256,7 @@ function ConnectedAccountRow({
         />
       ) : (
         <div className="w-10 h-10 rounded-full bg-ink text-on-primary text-sm font-semibold flex items-center justify-center">
-          {(account.name || account.email).charAt(0).toUpperCase()}
+          {(account.name || account.email || "?").charAt(0).toUpperCase()}
         </div>
       )}
       <div className="flex-1 min-w-0">
