@@ -4,8 +4,9 @@ import {
   getMonthGridDates,
   isSameDay,
   MONTH_NAMES_ID,
-  WEEKDAY_SHORT_ID,
+  weekdayLabels,
 } from "../lib/date-utils";
+import { usePreferences } from "../lib/preferences";
 
 interface MiniMonthProps {
   viewDate: Date;
@@ -21,7 +22,9 @@ export function MiniMonth({
   onSelectDate,
 }: MiniMonthProps) {
   const today = new Date();
-  const dates = getMonthGridDates(viewDate);
+  const { weekStart } = usePreferences();
+  const dates = getMonthGridDates(viewDate, weekStart);
+  const labels = weekdayLabels(weekStart);
   const currentMonth = viewDate.getMonth();
 
   return (
@@ -51,7 +54,7 @@ export function MiniMonth({
       </div>
 
       <div className="grid grid-cols-7 mb-1">
-        {WEEKDAY_SHORT_ID.map((d) => (
+        {labels.map((d) => (
           <div
             key={d}
             className="text-[10px] font-medium text-muted-soft text-center py-1"

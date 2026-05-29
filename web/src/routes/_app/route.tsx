@@ -6,7 +6,8 @@ import {
 } from "@tanstack/react-router";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { useEffect, useState } from "react";
-import { auth } from "../../lib/firebase";
+import { auth, waitForAuthReady } from "../../lib/firebase";
+import { PreferencesProvider } from "../../lib/preferences";
 import { hydrateThemeFromFirestore } from "../../lib/theme";
 import { NavRail } from "../../components/NavRail";
 import { AppLauncher } from "../../components/AppLauncher";
@@ -14,15 +15,10 @@ import { BottomNav } from "../../components/BottomNav";
 
 export const Route = createFileRoute("/_app")({
   beforeLoad: async () => {
-    // Wait one tick for Firebase to hydrate auth state from local storage,
-    // then redirect to /login if there's no user.
-    await new Promise<void>((resolve) => {
-      const unsub = auth.onAuthStateChanged(() => {
-        unsub();
-        resolve();
-      });
-    });
-    if (!auth.currentUser) {
+    // Wait for Firebase to hydrate auth state from local storage, then
+    // redirect to /login if there's no user.
+    const user = await waitForAuthReady();
+    if (!user) {
       throw redirect({ to: "/login" });
     }
   },
@@ -46,6 +42,7 @@ function AppLayout() {
   const initial = (user.displayName || user.email || "?").charAt(0).toUpperCase();
 
   return (
+    <PreferencesProvider>
     <div className="h-screen flex flex-col bg-canvas">
       <header className="h-14 border-b border-hairline px-4 flex items-center justify-between flex-none">
         <div className="flex items-center gap-2.5">
@@ -81,5 +78,6 @@ function AppLayout() {
 
       <BottomNav />
     </div>
+    </PreferencesProvider>
   );
 }

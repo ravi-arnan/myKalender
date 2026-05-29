@@ -17,15 +17,19 @@ export function addMonths(d: Date, n: number): Date {
   return new Date(d.getFullYear(), d.getMonth() + n, 1);
 }
 
-export function startOfWeek(d: Date): Date {
+/**
+ * weekStart: 0 = Sunday (default), 1 = Monday.
+ */
+export function startOfWeek(d: Date, weekStart: 0 | 1 = 0): Date {
   const r = new Date(d);
-  r.setDate(d.getDate() - d.getDay());
+  const diff = (d.getDay() - weekStart + 7) % 7;
+  r.setDate(d.getDate() - diff);
   r.setHours(0, 0, 0, 0);
   return r;
 }
 
-export function endOfWeek(d: Date): Date {
-  const r = startOfWeek(d);
+export function endOfWeek(d: Date, weekStart: 0 | 1 = 0): Date {
+  const r = startOfWeek(d, weekStart);
   r.setDate(r.getDate() + 6);
   r.setHours(23, 59, 59, 999);
   return r;
@@ -53,9 +57,15 @@ export function addWeeks(d: Date, n: number): Date {
   return addDays(d, n * 7);
 }
 
-export function getWeekDates(d: Date): Date[] {
-  const start = startOfWeek(d);
+export function getWeekDates(d: Date, weekStart: 0 | 1 = 0): Date[] {
+  const start = startOfWeek(d, weekStart);
   return Array.from({ length: 7 }, (_, i) => addDays(start, i));
+}
+
+/** Returns weekday labels reordered according to the week start preference. */
+export function weekdayLabels(weekStart: 0 | 1 = 0): string[] {
+  if (weekStart === 0) return WEEKDAY_SHORT_ID;
+  return [...WEEKDAY_SHORT_ID.slice(1), WEEKDAY_SHORT_ID[0]];
 }
 
 export function isSameDay(a: Date, b: Date): boolean {
@@ -66,9 +76,9 @@ export function isSameDay(a: Date, b: Date): boolean {
   );
 }
 
-export function getMonthGridDates(viewDate: Date): Date[] {
+export function getMonthGridDates(viewDate: Date, weekStart: 0 | 1 = 0): Date[] {
   const monthStart = startOfMonth(viewDate);
-  const gridStart = startOfWeek(monthStart);
+  const gridStart = startOfWeek(monthStart, weekStart);
   const dates: Date[] = [];
   for (let i = 0; i < 42; i++) {
     const d = new Date(gridStart);

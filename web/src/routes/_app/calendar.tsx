@@ -27,7 +27,9 @@ import {
   pushEventToGcal,
   updateGcalEvent,
 } from "../../lib/gcal-sync";
+import { usePreferences, type WeekStart } from "../../lib/preferences";
 import type { CalendarEvent, CalendarEventInput } from "../../lib/types";
+import { useWheelNav } from "../../lib/use-wheel-nav";
 import { MonthView } from "../../components/MonthView";
 import { DayView, WeekView } from "../../components/WeekView";
 import { EventDialog } from "../../components/EventDialog";
@@ -36,14 +38,14 @@ import { SidePanel } from "../../components/SidePanel";
 
 type CalendarView = "month" | "week" | "day";
 
-function formatTitle(view: CalendarView, d: Date): string {
+function formatTitle(view: CalendarView, d: Date, weekStart: WeekStart): string {
   const monthName = MONTH_NAMES_ID[d.getMonth()];
   const year = d.getFullYear();
   if (view === "month") return `${monthName} ${year}`;
   if (view === "day") return `${d.getDate()} ${monthName} ${year}`;
   // week
-  const wStart = startOfWeek(d);
-  const wEnd = endOfWeek(d);
+  const wStart = startOfWeek(d, weekStart);
+  const wEnd = endOfWeek(d, weekStart);
   if (wStart.getMonth() === wEnd.getMonth()) {
     return `${wStart.getDate()} - ${wEnd.getDate()} ${monthName} ${year}`;
   }
@@ -88,6 +90,7 @@ export const Route = createFileRoute("/_app/calendar")({
 
 function CalendarPage() {
   const user = auth.currentUser!;
+  const { weekStart } = usePreferences();
   const [view, setView] = useState<CalendarView>("month");
   const [viewDate, setViewDate] = useState(() => startOfMonth(new Date()));
   const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
@@ -101,17 +104,18 @@ function CalendarPage() {
     if (view === "month") {
       const monthStart = startOfMonth(viewDate);
       const monthEnd = endOfMonth(viewDate);
-      const gridStart = new Date(monthStart);
-      gridStart.setDate(monthStart.getDate() - monthStart.getDay());
-      const gridEnd = new Date(monthEnd);
-      gridEnd.setDate(monthEnd.getDate() + (6 - monthEnd.getDay()));
+      const gridStart = startOfWeek(monthStart, weekStart);
+      const gridEnd = endOfWeek(monthEnd, weekStart);
       return { start: gridStart, end: gridEnd };
     }
     if (view === "week") {
-      return { start: startOfWeek(viewDate), end: endOfWeek(viewDate) };
+      return {
+        start: startOfWeek(viewDate, weekStart),
+        end: endOfWeek(viewDate, weekStart),
+      };
     }
     return { start: startOfDay(viewDate), end: endOfDay(viewDate) };
-  }, [view, viewDate]);
+  }, [view, viewDate, weekStart]);
 
   const seenIdsRef = useRef<Set<string>>(new Set());
   const firstSnapshotRef = useRef(true);
@@ -162,6 +166,12 @@ function CalendarPage() {
     else if (view === "week") setViewDate(addWeeks(viewDate, delta));
     else setViewDate(addDays(viewDate, delta));
   }
+
+  // Trackpad swipe over the grid steps the period (like GCal). Vertical swipe
+  // navigates only in month view; week/day keep vertical scroll for the grid.
+  const gridRef = useWheelNav<HTMLDivElement>(stepView, {
+    vertical: view === "month",
+  });
 
   function handleMiniSelectDate(d: Date) {
     setSelectedDate(d);
@@ -314,13 +324,13 @@ function CalendarPage() {
               </button>
             </div>
             <h2 className="font-display text-base sm:text-xl text-ink truncate">
-              {formatTitle(view, viewDate)}
+              {formatTitle(view, viewDate, weekStart)}
             </h2>
           </div>
           <ViewSwitcher view={view} onChange={setView} />
         </div>
 
-        <div className="flex-1 overflow-auto">
+        <div ref={gridRef} className="flex-1 overflow-auto">
           {view === "month" ? (
             <MonthView
               viewDate={viewDate}
@@ -357,7 +367,11 @@ function CalendarPage() {
       </main>
 
       <div className="hidden lg:flex">
-        <SidePanel onQuickAdd={handleCreate} />
+        <SidePanel
+          events={filteredEvents}
+          onQuickAdd={handleCreate}
+          onEventClick={handleEventClick}
+        />
       </div>
 
       {dialogOpen ? (

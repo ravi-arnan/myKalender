@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Bell, BellRing, Check, Globe, Link2, Loader2, Monitor, Moon, Palette, ShieldCheck, Sun } from "lucide-react";
+import { Bell, BellRing, Check, Globe, Link2, Loader2, Monitor, Moon, Palette, ShieldCheck, Sun, Volume2, VolumeX } from "lucide-react";
 import { useEffect, useState } from "react";
 import { auth } from "../../lib/firebase";
 import { syncGoogleCalendar } from "../../lib/gcal-sync";
@@ -8,6 +8,7 @@ import {
   notify,
   requestNotificationPermission,
 } from "../../lib/notifications";
+import { usePreferences } from "../../lib/preferences";
 import {
   getThemePreference,
   setThemePreference,
@@ -20,6 +21,7 @@ export const Route = createFileRoute("/_app/settings")({
 
 function SettingsPage() {
   const [theme, setTheme] = useState<ThemePreference>(() => getThemePreference());
+  const { weekStart, setWeekStart, notifSound, setNotifSound } = usePreferences();
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [notifPermission, setNotifPermission] = useState(notificationPermission());
@@ -106,7 +108,33 @@ function SettingsPage() {
               />
             </div>
           </div>
-          <Row label="Mulai minggu di" value="Minggu" />
+          <div className="px-4 py-3 bg-canvas flex items-center justify-between gap-3">
+            <span className="text-sm text-body">Mulai minggu di</span>
+            <div className="inline-flex items-center rounded-md border border-hairline overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setWeekStart(0)}
+                className={`px-3 py-1 text-xs font-medium transition ${
+                  weekStart === 0
+                    ? "bg-ink text-on-primary"
+                    : "text-body hover:bg-surface-soft hover:text-ink"
+                }`}
+              >
+                Minggu
+              </button>
+              <button
+                type="button"
+                onClick={() => setWeekStart(1)}
+                className={`px-3 py-1 text-xs font-medium transition border-l border-hairline ${
+                  weekStart === 1
+                    ? "bg-ink text-on-primary"
+                    : "text-body hover:bg-surface-soft hover:text-ink"
+                }`}
+              >
+                Senin
+              </button>
+            </div>
+          </div>
           <Row label="Bahasa" value="Bahasa Indonesia" />
         </SettingSection>
 
@@ -131,19 +159,53 @@ function SettingsPage() {
                 </p>
               </>
             ) : notifPermission === "granted" ? (
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-body mb-0.5">Notifikasi aktif</p>
-                  <p className="text-xs text-muted">
-                    Kamu bakal dapet notif saat ada jadwal baru atau sync
-                    selesai.
-                  </p>
+              <>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-body mb-0.5">Notifikasi aktif</p>
+                    <p className="text-xs text-muted">
+                      Kamu bakal dapet notif saat ada jadwal baru atau sync
+                      selesai.
+                    </p>
+                  </div>
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-success px-2 py-1 rounded-full bg-success/10">
+                    <Check size={12} />
+                    Aktif
+                  </span>
                 </div>
-                <span className="inline-flex items-center gap-1 text-xs font-medium text-success px-2 py-1 rounded-full bg-success/10">
-                  <Check size={12} />
-                  Aktif
-                </span>
-              </div>
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-hairline">
+                  <div className="flex items-center gap-2">
+                    {notifSound ? (
+                      <Volume2 size={14} className="text-muted" />
+                    ) : (
+                      <VolumeX size={14} className="text-muted" />
+                    )}
+                    <div>
+                      <p className="text-sm text-body">Bunyi notifikasi</p>
+                      <p className="text-xs text-muted">
+                        {notifSound
+                          ? "Notifikasi pakai suara default browser."
+                          : "Notifikasi muncul tanpa bunyi."}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setNotifSound(!notifSound)}
+                    role="switch"
+                    aria-checked={notifSound}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
+                      notifSound ? "bg-ink" : "bg-hairline"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-canvas transition ${
+                        notifSound ? "translate-x-6" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                </div>
+              </>
             ) : (
               <>
                 <p className="text-sm text-body mb-1">Aktifkan notifikasi web</p>

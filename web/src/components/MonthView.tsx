@@ -6,8 +6,9 @@ import {
   getMonthGridDates,
   isSameDay,
   startOfDay,
-  WEEKDAY_SHORT_ID,
+  weekdayLabels,
 } from "../lib/date-utils";
+import { usePreferences } from "../lib/preferences";
 
 interface MonthViewProps {
   viewDate: Date;
@@ -114,8 +115,10 @@ export function MonthView({
   onDayClick,
   onEventClick,
 }: MonthViewProps) {
+  const { weekStart } = usePreferences();
   const today = new Date();
-  const dates = getMonthGridDates(viewDate);
+  const dates = getMonthGridDates(viewDate, weekStart);
+  const labels = weekdayLabels(weekStart);
   const currentMonth = viewDate.getMonth();
   const weeks: Date[][] = [];
   for (let i = 0; i < dates.length; i += 7) weeks.push(dates.slice(i, i + 7));
@@ -123,7 +126,7 @@ export function MonthView({
   return (
     <div className="flex flex-col h-full">
       <div className="grid grid-cols-7 border-b border-hairline">
-        {WEEKDAY_SHORT_ID.map((d) => (
+        {labels.map((d) => (
           <div
             key={d}
             className="px-1 sm:px-3 py-1.5 sm:py-2 text-[10px] sm:text-[11px] font-medium uppercase tracking-wider text-muted text-center border-r border-hairline last:border-r-0"

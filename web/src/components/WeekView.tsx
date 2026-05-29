@@ -8,6 +8,7 @@ import {
   startOfDay,
   WEEKDAY_SHORT_ID,
 } from "../lib/date-utils";
+import { usePreferences } from "../lib/preferences";
 
 interface WeekViewProps {
   viewDate: Date;
@@ -27,8 +28,9 @@ export function WeekView({
   onSlotClick,
   onEventClick,
 }: WeekViewProps) {
+  const { weekStart } = usePreferences();
   const today = new Date();
-  const allDays = daysToShow === 1 ? [startOfDay(viewDate)] : getWeekDates(viewDate);
+  const allDays = daysToShow === 1 ? [startOfDay(viewDate)] : getWeekDates(viewDate, weekStart);
   const days = allDays.slice(0, daysToShow);
 
   return (

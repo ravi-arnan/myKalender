@@ -1,4 +1,4 @@
-import { Bell, Calendar, Clock, CloudUpload, FileText, Repeat, X } from "lucide-react";
+import { Bell, Calendar, Clock, CloudUpload, FileText, Repeat, Volume2, X } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { Timestamp } from "firebase/firestore";
 import {
@@ -6,8 +6,9 @@ import {
   formatTimeInput,
   parseDateTimeInput,
 } from "../lib/date-utils";
-import { RECURRENCE_OPTIONS, REMINDER_OPTIONS } from "../lib/types";
+import { ALARM_MODE_OPTIONS, RECURRENCE_OPTIONS, REMINDER_OPTIONS } from "../lib/types";
 import type {
+  AlarmMode,
   CalendarEvent,
   CalendarEventInput,
   RecurrencePreset,
@@ -50,6 +51,9 @@ export function EventDialog({
   );
   const [pushToGcal, setPushToGcal] = useState(
     Boolean(existing?.gcalEventId && existing?.source === "manual"),
+  );
+  const [alarmMode, setAlarmMode] = useState<AlarmMode>(
+    existing?.alarmMode ?? "alarm",
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -98,6 +102,7 @@ export function EventDialog({
           source: existing?.source ?? "manual",
           gcalEventId: existing?.gcalEventId,
           recurrence: recurrence === "none" ? undefined : recurrence,
+          alarmMode,
         },
         { pushToGcal },
       );
@@ -224,6 +229,32 @@ export function EventDialog({
                   </option>
                 ))}
               </select>
+            </Field>
+
+            <Field icon={<Volume2 size={16} />} label="Mode pengingat">
+              <div className="grid grid-cols-2 gap-2">
+                {ALARM_MODE_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setAlarmMode(opt.value)}
+                    className={`text-left rounded-md border px-3 py-2 transition ${
+                      alarmMode === opt.value
+                        ? "border-ink bg-ink text-on-primary"
+                        : "border-hairline text-body hover:bg-surface-soft hover:text-ink"
+                    }`}
+                  >
+                    <p className="text-xs font-semibold">{opt.label}</p>
+                    <p
+                      className={`text-[10px] leading-tight mt-0.5 ${
+                        alarmMode === opt.value ? "opacity-80" : "text-muted"
+                      }`}
+                    >
+                      {opt.description}
+                    </p>
+                  </button>
+                ))}
+              </div>
             </Field>
 
             {isGcalImport ? null : (

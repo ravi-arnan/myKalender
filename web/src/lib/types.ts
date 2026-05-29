@@ -2,6 +2,21 @@ import { Timestamp } from "firebase/firestore";
 
 export type EventSource = "manual" | "gcal" | "gcal-holiday";
 
+export type AlarmMode = "alarm" | "notification";
+
+export const ALARM_MODE_OPTIONS: { value: AlarmMode; label: string; description: string }[] = [
+  {
+    value: "alarm",
+    label: "Alarm beneran",
+    description: "Bunyi keras, layar full-screen, getar, sampai di-matikan.",
+  },
+  {
+    value: "notification",
+    label: "Notifikasi biasa",
+    description: "Heads-up notif standar, gak loud, gak full-screen.",
+  },
+];
+
 export const INDONESIAN_HOLIDAY_CALENDAR_ID =
   "id.indonesian#holiday@group.v.calendar.google.com";
 
@@ -32,6 +47,7 @@ export interface CalendarEvent {
   gcalEventId?: string;
   accountEmail?: string;
   recurrence?: RecurrencePreset;
+  alarmMode?: AlarmMode;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
