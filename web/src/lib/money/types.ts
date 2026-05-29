@@ -32,14 +32,17 @@ export interface Wallet {
 
 export type WalletInput = Omit<Wallet, "id" | "createdAt" | "updatedAt">;
 
-export type TransactionType = "income" | "expense";
+export type TransactionType = "income" | "expense" | "transfer";
 
 export interface Transaction {
   id: string;
   type: TransactionType;
   /** Always a positive integer in rupiah; `type` carries the sign. */
   amount: number;
+  /** Source wallet (for income/expense the only wallet; for transfer the "from"). */
   walletId: string;
+  /** Destination wallet — set only for transfers. */
+  toWalletId?: string;
   categoryId: string;
   date: Timestamp;
   note?: string;

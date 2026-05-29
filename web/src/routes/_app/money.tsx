@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
   ArrowDownLeft,
+  ArrowLeftRight,
   ArrowUpRight,
   CalendarClock,
   Check,
@@ -13,10 +14,16 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { auth } from "../../lib/firebase";
 import { addMonths, isSameDay, MONTH_NAMES_ID, startOfMonth } from "../../lib/date-utils";
-import { getCategoryOrFallback } from "../../lib/money/categories";
+import { EXPENSE_CATEGORIES, getCategoryOrFallback } from "../../lib/money/categories";
 import { formatIDR } from "../../lib/money/format";
 import { WALLET_TYPE_OPTIONS, type Transaction, type Wallet } from "../../lib/money/types";
 import { computeWalletBalances } from "../../lib/money/balances";
+import {
+  setBudget,
+  subscribeBudgets,
+  type Budget,
+} from "../../lib/money/budgets";
+import { BudgetDialog } from "../../components/money/BudgetDialog";
 import {
   createTransaction,
   deleteTransaction,
@@ -50,7 +57,7 @@ export const Route = createFileRoute("/_app/money")({
   component: MoneyPage,
 });
 
-type Tab = "transaksi" | "tagihan" | "dompet";
+type Tab = "transaksi" | "anggaran" | "tagihan" | "dompet";
 
 function MoneyPage() {
   const user = auth.currentUser!;
@@ -63,6 +70,7 @@ function MoneyPage() {
   const loaded = walletsLoaded && txLoaded;
 
   const [bills, setBills] = useState<Bill[]>([]);
+  const [budgets, setBudgets] = useState<Budget[]>([]);
 
   const [txDialogOpen, setTxDialogOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
@@ -70,6 +78,7 @@ function MoneyPage() {
   const [editingWallet, setEditingWallet] = useState<Wallet | null>(null);
   const [billDialogOpen, setBillDialogOpen] = useState(false);
   const [editingBill, setEditingBill] = useState<Bill | null>(null);
+  const [budgetCategory, setBudgetCategory] = useState<string | null>(null);
 
   useEffect(
     () =>
@@ -80,6 +89,7 @@ function MoneyPage() {
     [user.uid],
   );
   useEffect(() => subscribeBills(user.uid, setBills), [user.uid]);
+  useEffect(() => subscribeBudgets(user.uid, setBudgets), [user.uid]);
   useEffect(
     () =>
       subscribeTransactions(user.uid, (next) => {
@@ -114,10 +124,21 @@ function MoneyPage() {
     let income = 0;
     let expense = 0;
     for (const t of monthTx) {
+      // Transfers move money between wallets — not income or expense.
       if (t.type === "income") income += t.amount;
-      else expense += t.amount;
+      else if (t.type === "expense") expense += t.amount;
     }
     return { income, expense };
+  }, [monthTx]);
+
+  // Expense spent per category this month (for the budget/report tab).
+  const spendByCategory = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const t of monthTx) {
+      if (t.type !== "expense") continue;
+      map.set(t.categoryId, (map.get(t.categoryId) ?? 0) + t.amount);
+    }
+    return map;
   }, [monthTx]);
 
   // Group the (date-desc) month transactions into day buckets.
@@ -205,12 +226,12 @@ function MoneyPage() {
       <div className="h-14 border-b border-hairline px-3 sm:px-5 flex items-center justify-between flex-none gap-2">
         <h2 className="font-display text-base sm:text-xl text-ink">Keuangan</h2>
         <div className="inline-flex items-center rounded-md border border-hairline overflow-hidden">
-          {(["transaksi", "tagihan", "dompet"] as const).map((t) => (
+          {(["transaksi", "anggaran", "tagihan", "dompet"] as const).map((t) => (
             <button
               key={t}
               type="button"
               onClick={() => setTab(t)}
-              className={`px-3 py-1.5 text-xs sm:text-sm font-medium transition border-r border-hairline last:border-r-0 capitalize ${
+              className={`px-2.5 py-1.5 text-xs sm:text-sm font-medium transition border-r border-hairline last:border-r-0 capitalize ${
                 tab === t
                   ? "bg-ink text-on-primary"
                   : "text-body hover:bg-surface-soft hover:text-ink"
@@ -298,6 +319,11 @@ function MoneyPage() {
                           walletName={
                             wallets.find((w) => w.id === t.walletId)?.name ?? "—"
                           }
+                          toWalletName={
+                            t.toWalletId
+                              ? wallets.find((w) => w.id === t.toWalletId)?.name ?? "—"
+                              : undefined
+                          }
                           onClick={() => openEditTx(t)}
                         />
                       ))}
@@ -306,6 +332,55 @@ function MoneyPage() {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      ) : tab === "anggaran" ? (
+        /* Anggaran tab — monthly spending report + per-category budgets */
+        <div className="flex-1 overflow-auto">
+          <div className="max-w-2xl mx-auto p-4 sm:p-6 space-y-5">
+            <section className="rounded-xl border border-hairline bg-surface-card p-5">
+              <p className="text-xs font-medium text-muted">
+                Pengeluaran {MONTH_NAMES_ID[viewMonth.getMonth()]}{" "}
+                {viewMonth.getFullYear()}
+              </p>
+              <p className="font-display text-3xl text-ink mt-1">
+                {formatIDR(expense)}
+              </p>
+            </section>
+
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-ink">Anggaran kategori</span>
+              <div className="inline-flex items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => stepMonth(-1)}
+                  className="p-1.5 rounded-md text-muted hover:text-ink hover:bg-surface-soft transition"
+                  aria-label="Bulan sebelumnya"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => stepMonth(1)}
+                  className="p-1.5 rounded-md text-muted hover:text-ink hover:bg-surface-soft transition"
+                  aria-label="Bulan berikutnya"
+                >
+                  <ChevronRight size={18} />
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {EXPENSE_CATEGORIES.map((cat) => (
+                <BudgetRow
+                  key={cat.id}
+                  categoryId={cat.id}
+                  spent={spendByCategory.get(cat.id) ?? 0}
+                  budget={budgets.find((b) => b.categoryId === cat.id)?.amount ?? 0}
+                  onEdit={() => setBudgetCategory(cat.id)}
+                />
+              ))}
+            </div>
           </div>
         </div>
       ) : tab === "tagihan" ? (
@@ -402,7 +477,76 @@ function MoneyPage() {
           onDelete={editingBill ? handleDeleteBill : undefined}
         />
       ) : null}
+
+      {budgetCategory ? (
+        <BudgetDialog
+          categoryLabel={
+            EXPENSE_CATEGORIES.find((c) => c.id === budgetCategory)?.label ?? ""
+          }
+          currentAmount={
+            budgets.find((b) => b.categoryId === budgetCategory)?.amount ?? 0
+          }
+          onClose={() => setBudgetCategory(null)}
+          onSave={(amount) => setBudget(user.uid, budgetCategory, amount)}
+        />
+      ) : null}
     </main>
+  );
+}
+
+function BudgetRow({
+  categoryId,
+  spent,
+  budget,
+  onEdit,
+}: {
+  categoryId: string;
+  spent: number;
+  budget: number;
+  onEdit: () => void;
+}) {
+  const cat = getCategoryOrFallback(categoryId, "expense");
+  const Icon = cat.icon;
+  const pct = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
+  const over = budget > 0 && spent > budget;
+  return (
+    <button
+      type="button"
+      onClick={onEdit}
+      className="w-full text-left rounded-xl border border-hairline p-4 hover:bg-surface-soft transition"
+    >
+      <div className="flex items-center gap-3">
+        <span
+          className="w-8 h-8 rounded-full flex items-center justify-center flex-none"
+          style={{ backgroundColor: cat.color + "22", color: cat.color }}
+        >
+          <Icon size={16} />
+        </span>
+        <span className="text-sm text-ink flex-1">{cat.label}</span>
+        <span className="text-xs text-muted">
+          {budget > 0 ? (
+            <>
+              <span className={over ? "text-error font-semibold" : "text-ink font-medium"}>
+                {formatIDR(spent)}
+              </span>{" "}
+              / {formatIDR(budget)}
+            </>
+          ) : (
+            <span className="text-muted-soft">
+              {spent > 0 ? `${formatIDR(spent)} · ` : ""}set budget
+            </span>
+          )}
+        </span>
+      </div>
+      {budget > 0 ? (
+        <div className="mt-2.5 h-1.5 rounded-full bg-surface-strong overflow-hidden">
+          <div
+            className={`h-full rounded-full ${over ? "bg-error" : "bg-ink"}`}
+            style={{ width: `${over ? 100 : pct}%` }}
+          />
+        </div>
+      ) : null}
+    </button>
   );
 }
 
@@ -497,15 +641,19 @@ function SummaryChip({
 function TransactionRow({
   tx,
   walletName,
+  toWalletName,
   onClick,
 }: {
   tx: Transaction;
   walletName: string;
+  toWalletName?: string;
   onClick: () => void;
 }) {
-  const cat = getCategoryOrFallback(tx.categoryId, tx.type);
-  const Icon = cat.icon;
+  const isTransfer = tx.type === "transfer";
   const isIncome = tx.type === "income";
+  const cat = getCategoryOrFallback(tx.categoryId, tx.type);
+  const Icon = isTransfer ? ArrowLeftRight : cat.icon;
+  const tint = isTransfer ? "#3b82f6" : cat.color;
   return (
     <button
       type="button"
@@ -514,22 +662,26 @@ function TransactionRow({
     >
       <span
         className="w-9 h-9 rounded-full flex items-center justify-center flex-none"
-        style={{ backgroundColor: cat.color + "22", color: cat.color }}
+        style={{ backgroundColor: tint + "22", color: tint }}
       >
         <Icon size={17} />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-sm text-ink truncate">{tx.note || cat.label}</p>
+        <p className="text-sm text-ink truncate">
+          {isTransfer ? tx.note || "Transfer" : tx.note || cat.label}
+        </p>
         <p className="text-xs text-muted truncate">
-          {cat.label} · {walletName}
+          {isTransfer
+            ? `${walletName} → ${toWalletName ?? "—"}`
+            : `${cat.label} · ${walletName}`}
         </p>
       </div>
       <span
         className={`text-sm font-semibold flex-none ${
-          isIncome ? "text-success" : "text-ink"
+          isTransfer ? "text-muted" : isIncome ? "text-success" : "text-ink"
         }`}
       >
-        {isIncome ? "+" : "−"}
+        {isTransfer ? "" : isIncome ? "+" : "−"}
         {formatIDR(tx.amount)}
       </span>
     </button>

@@ -40,6 +40,9 @@ export function TransactionDialog({
   const [walletId, setWalletId] = useState(
     existing?.walletId ?? defaultWalletId ?? wallets[0]?.id ?? "",
   );
+  const [toWalletId, setToWalletId] = useState(
+    existing?.toWalletId ?? wallets[1]?.id ?? wallets[0]?.id ?? "",
+  );
   const [date, setDate] = useState(
     formatDateInput(existing ? existing.date.toDate() : initialDate),
   );
@@ -75,6 +78,10 @@ export function TransactionDialog({
       setError("Pilih dompet dulu");
       return;
     }
+    if (type === "transfer" && (!toWalletId || toWalletId === walletId)) {
+      setError("Pilih dompet tujuan yang berbeda");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -82,7 +89,8 @@ export function TransactionDialog({
         type,
         amount,
         walletId,
-        categoryId,
+        toWalletId: type === "transfer" ? toWalletId : undefined,
+        categoryId: type === "transfer" ? "" : categoryId,
         date: Timestamp.fromDate(parseDateTimeInput(date, "12:00")),
         note: note.trim() || undefined,
       });
@@ -131,24 +139,32 @@ export function TransactionDialog({
         </div>
 
         <div className="p-5 space-y-5">
-          {/* Income / expense toggle */}
-          <div className="grid grid-cols-2 gap-2">
-            {(["expense", "income"] as const).map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => switchType(t)}
-                className={`rounded-md border px-3 py-2 text-sm font-semibold transition ${
-                  type === t
-                    ? t === "income"
-                      ? "border-success bg-success text-white"
-                      : "border-ink bg-ink text-on-primary"
-                    : "border-hairline text-body hover:bg-surface-soft hover:text-ink"
-                }`}
-              >
-                {t === "income" ? "Pemasukan" : "Pengeluaran"}
-              </button>
-            ))}
+          {/* Type toggle */}
+          <div className="grid grid-cols-3 gap-2">
+            {(["expense", "income", "transfer"] as const).map((t) => {
+              const label =
+                t === "income" ? "Pemasukan" : t === "expense" ? "Pengeluaran" : "Transfer";
+              const activeClass =
+                t === "income"
+                  ? "border-success bg-success text-white"
+                  : t === "transfer"
+                    ? "border-brand-accent bg-brand-accent text-white"
+                    : "border-ink bg-ink text-on-primary";
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => switchType(t)}
+                  className={`rounded-md border px-2 py-2 text-sm font-semibold transition ${
+                    type === t
+                      ? activeClass
+                      : "border-hairline text-body hover:bg-surface-soft hover:text-ink"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
 
           {/* Amount */}
@@ -170,7 +186,8 @@ export function TransactionDialog({
             />
           </div>
 
-          {/* Category grid */}
+          {/* Category grid (not for transfers) */}
+          {type !== "transfer" ? (
           <div>
             <label className="block text-xs font-medium text-muted mb-2">
               Kategori
@@ -204,9 +221,13 @@ export function TransactionDialog({
               })}
             </div>
           </div>
+          ) : null}
 
-          {/* Wallet */}
-          <Field icon={<WalletIcon size={16} />} label="Dompet">
+          {/* Wallet(s) */}
+          <Field
+            icon={<WalletIcon size={16} />}
+            label={type === "transfer" ? "Dari dompet" : "Dompet"}
+          >
             <select
               value={walletId}
               onChange={(e) => setWalletId(e.target.value)}
@@ -219,6 +240,22 @@ export function TransactionDialog({
               ))}
             </select>
           </Field>
+
+          {type === "transfer" ? (
+            <Field icon={<WalletIcon size={16} />} label="Ke dompet">
+              <select
+                value={toWalletId}
+                onChange={(e) => setToWalletId(e.target.value)}
+                className="w-full px-3 py-2 rounded-md border border-hairline focus:outline-none focus:border-ink text-sm text-ink bg-canvas"
+              >
+                {wallets.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          ) : null}
 
           {/* Date */}
           <Field icon={<CalendarDays size={16} />} label="Tanggal">
