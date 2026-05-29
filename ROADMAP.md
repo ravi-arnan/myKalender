@@ -79,16 +79,18 @@ Status: **Phase 1 (Web) + Phase 2 (Android alarm) selesai 2026-05-29.** Core req
   - updateEvent dengan gcalEventId → PATCH GCal
   - deleteEvent dengan gcalEventId → DELETE GCal (Firestore + GCal)
   - Uncheck checkbox di event yang sudah pushed → hapus dari GCal, tetap di myKalender
-- [x] **AI Schedule Generator** — done 2026-05-29
-  - Route `/ai` dengan textarea natural language + tombol Generate
+- [x] **AI Schedule Generator** — done 2026-05-29 (chat-style panel)
+  - SidePanel button (Sparkles) → slide-over chat panel dari kanan (`AiChatPanel`)
+  - Chat UI: user bubble + assistant bubble + multi-message history per sesi panel
   - GitHub Models `openai/gpt-4o-mini` via `https://models.github.ai/inference`
   - Token: `VITE_GITHUB_MODELS_TOKEN` di `.env.local` (PAT scope `models:read`)
   - Structured output via `response_format: json_schema` (strict mode)
-  - Preview cards (checkbox per event) sebelum apply
-  - Optional checkbox sinkron ke Google Calendar di apply
+  - Preview cards inline di AI bubble (checkbox per event) + "Tambah N" button
+  - Optional toggle sinkron ke Google Calendar di footer panel
   - Recurrence presets: none/daily/weekdays/weekly/monthly
   - Reminder offset snap ke preset terdekat (0/5/10/20/30/60/1440)
   - Source = "manual", alarmMode = "alarm" → alarm Android fire otomatis via Firestore listener
+  - Route `/ai` dihapus; AI murni sebagai panel di dalam calendar layout
 - [x] **Mode alarm vs notifikasi per event** — done 2026-05-29
   - Field `alarmMode` ("alarm" | "notification") di Event (web + Android)
   - Web EventDialog + Android EventDialog: pilih "Alarm beneran" vs "Notifikasi biasa"
@@ -109,8 +111,14 @@ kode terisolasi (`lib/money/`, `components/money/`) agar bisa diekstrak nanti.
 - [x] **Transaksi** — pemasukan/pengeluaran CRUD, kategori default (8 keluar + 4 masuk), grup per hari, navigasi bulan (+ swipe trackpad)
 - [x] **Tagihan berulang → alarm** — bill bikin CalendarEvent recurring bulanan di koleksi `events` → pipeline alarm Android/web fire otomatis (zero perubahan Android); "Tandai lunas" → catat pengeluaran + anti dobel-bayar (`lastPaidYM`)
 - [x] **Data layer teruji** — `computeWalletBalances` + format IDR diuji unit (16/16 lulus)
-- [ ] **myDuit v2** — transfer antar dompet, budget bulanan, grafik/laporan, kategori custom
-- [ ] **myDuit Android** — modul Kotlin/Compose (tujuan lintas-perangkat)
+- [x] **myDuit Android** — done 2026-05-29
+  - Modul Kotlin/Compose: `data/money/`, `ui/money/`, `MoneyViewModel`, tab "Keuangan" di bottom nav
+  - Paritas MVP: dompet, transaksi (income/expense), tagihan → reuse pipeline alarm (zero kode alarm baru)
+  - `computeWalletBalances` transfer-aware (saldo tetap benar walau transfer dibuat di web)
+- [x] **myDuit v2 (web)** — done 2026-05-29
+  - **Transfer antar dompet** — tipe transaksi ketiga (from→to), tidak dihitung income/expense
+  - **Anggaran bulanan** — koleksi `budgets` (key by categoryId), progress per kategori + laporan pengeluaran
+- [ ] **myDuit v2 sisa** — kategori custom, port transfer/anggaran ke Android, grafik visual (pie/line)
 
 ### Polish kecil
 - [x] **Theme picker di Android** — done 2026-05-29
