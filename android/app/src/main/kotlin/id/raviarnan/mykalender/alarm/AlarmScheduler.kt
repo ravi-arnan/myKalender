@@ -27,14 +27,7 @@ class AlarmScheduler(private val context: Context) {
         if (event.source == "gcal-holiday") return
 
         val now = System.currentTimeMillis()
-        val effectiveStartMs = if (event.recurrence.isNullOrBlank() || event.recurrence == RecurrenceHelper.NONE) {
-            event.start.toDate().time
-        } else {
-            RecurrenceHelper
-                .nextOccurrenceStart(event.start.toDate(), event.recurrence, java.util.Date(now))
-                ?.time
-                ?: event.start.toDate().time
-        }
+        val effectiveStartMs = effectiveStartFor(event)
         val triggerAt = effectiveStartMs - event.reminderOffsetMinutes * 60_000L
 
         if (triggerAt > now) {
@@ -46,7 +39,10 @@ class AlarmScheduler(private val context: Context) {
             )
             val operation = pendingIntentFor(event, effectiveStartMs)
             val info = AlarmManager.AlarmClockInfo(triggerAt, showIntent)
-            alarmManager.setAlarmClock(info, operation)
+            // AlarmManager throws if the app's 500-alarm cap is exceeded; never
+            // let that crash the app — reconcile() caps us well below the limit,
+            // this is just a defensive net.
+            runCatching { alarmManager.setAlarmClock(info, operation) }
         }
 
         if (event.alarmMode != "notification") {
@@ -72,7 +68,21 @@ class AlarmScheduler(private val context: Context) {
             PreAlarmReceiver.intent(context, event.id, event.title),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, preTriggerAt, operation)
+        runCatching {
+            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, preTriggerAt, operation)
+        }
+    }
+
+    /** Next occurrence start (ms) for recurring events, else the event start. */
+    private fun effectiveStartFor(event: Event): Long {
+        if (event.recurrence.isNullOrBlank() || event.recurrence == RecurrenceHelper.NONE) {
+            return event.start.toDate().time
+        }
+        val now = System.currentTimeMillis()
+        return RecurrenceHelper
+            .nextOccurrenceStart(event.start.toDate(), event.recurrence, java.util.Date(now))
+            ?.time
+            ?: event.start.toDate().time
     }
 
     private fun cancelPreAlarm(eventId: String) {
@@ -125,16 +135,29 @@ class AlarmScheduler(private val context: Context) {
 
     companion object {
         private const val PRE_ALARM_OFFSET_MS = 5 * 60_000L
+
+        // Android caps an app at 500 concurrent alarms. Each event uses up to two
+        // (main + pre-alarm), so we schedule only the soonest events to stay well
+        // under the limit. Distant events get scheduled later, as nearer ones fire
+        // and reconcile re-runs (on every Firestore snapshot and on boot).
+        private const val MAX_SCHEDULED_EVENTS = 200
     }
 
     /**
      * Replaces the current schedule with the given events: cancels alarms not in
-     * the new list, schedules/refreshes the rest.
+     * the new list, schedules/refreshes the rest. Only the soonest
+     * [MAX_SCHEDULED_EVENTS] alarm-eligible events are scheduled (see the cap
+     * rationale above) — the rest are left unscheduled until they come closer.
      */
     fun reconcile(currentlyScheduledIds: Set<String>, events: List<Event>) {
-        val newIds = events.map { it.id }.toSet()
-        for (id in currentlyScheduledIds - newIds) cancel(id)
-        for (event in events) schedule(event)
+        val schedulable = events
+            .filter { it.reminderOffsetMinutes >= 0 && it.source != "gcal-holiday" }
+            .sortedBy { effectiveStartFor(it) }
+            .take(MAX_SCHEDULED_EVENTS)
+        val keepIds = schedulable.map { it.id }.toSet()
+
+        for (id in currentlyScheduledIds - keepIds) cancel(id)
+        for (event in schedulable) schedule(event)
     }
 
     private fun pendingIntentFor(event: Event, effectiveStartMs: Long): PendingIntent {

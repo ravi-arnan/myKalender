@@ -34,7 +34,9 @@ class BootReceiver : BroadcastReceiver() {
                 val events = snap.documents.mapNotNull { d ->
                     d.toObject(Event::class.java)?.copy(id = d.id)
                 }
-                for (event in events) scheduler.schedule(event)
+                // reconcile() caps the number of alarms so a large calendar can't
+                // blow past Android's 500-alarm limit and crash the receiver.
+                scheduler.reconcile(emptySet(), events)
                 pendingResult.finish()
             }
             .addOnFailureListener { pendingResult.finish() }
