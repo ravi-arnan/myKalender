@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="./myKalenderLogo.png" alt="myKalender" width="180" height="180" />
+
 # myKalender
 
 **A personal calendar that rings like a real alarm clock — not a silent notification.**
