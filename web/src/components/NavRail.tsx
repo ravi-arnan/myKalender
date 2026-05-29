@@ -5,7 +5,6 @@ import {
   ChevronRight,
   Link2,
   Settings,
-  Sparkles,
   Wallet,
 } from "lucide-react";
 import { useState } from "react";
@@ -18,7 +17,6 @@ interface NavItem {
 
 const ITEMS: NavItem[] = [
   { to: "/calendar", label: "Kalender", icon: <CalendarDays size={18} /> },
-  { to: "/ai", label: "AI Jadwal", icon: <Sparkles size={18} /> },
   { to: "/money", label: "Keuangan", icon: <Wallet size={18} /> },
   { to: "/accounts", label: "Akun terhubung", icon: <Link2 size={18} /> },
   { to: "/settings", label: "Pengaturan", icon: <Settings size={18} /> },

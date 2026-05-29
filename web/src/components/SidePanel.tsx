@@ -4,6 +4,7 @@ import {
   Download,
   Plus,
   Smartphone,
+  Sparkles,
   X,
 } from "lucide-react";
 import { useState } from "react";
@@ -16,9 +17,17 @@ interface SidePanelProps {
   events: CalendarEvent[];
   onQuickAdd: () => void;
   onEventClick: (event: CalendarEvent) => void;
+  onOpenAi: () => void;
+  aiActive: boolean;
 }
 
-export function SidePanel({ events, onQuickAdd, onEventClick }: SidePanelProps) {
+export function SidePanel({
+  events,
+  onQuickAdd,
+  onEventClick,
+  onOpenAi,
+  aiActive,
+}: SidePanelProps) {
   const [active, setActive] = useState<ActivePanel>(null);
 
   function toggle(panel: Exclude<ActivePanel, null>) {
@@ -34,6 +43,12 @@ export function SidePanel({ events, onQuickAdd, onEventClick }: SidePanelProps) 
           onClick={onQuickAdd}
         />
         <PanelIcon
+          label="AI Jadwal"
+          icon={<Sparkles size={18} />}
+          active={aiActive}
+          onClick={onOpenAi}
+        />
+        <PanelIcon
           label="Status alarm HP"
           icon={<Smartphone size={18} />}
           active={active === "phone"}
@@ -47,7 +62,7 @@ export function SidePanel({ events, onQuickAdd, onEventClick }: SidePanelProps) 
         />
       </aside>
 
-      {active !== null ? (
+      {active === "bell" || active === "phone" ? (
         <>
           <div
             className="fixed inset-0 z-30"

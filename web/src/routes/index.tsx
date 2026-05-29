@@ -264,7 +264,7 @@ function AiShowcase({ authed }: { authed: boolean }) {
             ))}
           </ul>
           <Link
-            to={authed ? "/ai" : "/login"}
+            to={authed ? "/calendar" : "/login"}
             className="inline-flex items-center gap-2 rounded-md bg-primary text-on-primary px-4 py-2.5 text-sm font-semibold hover:bg-primary-active transition"
           >
             Coba AI Jadwal

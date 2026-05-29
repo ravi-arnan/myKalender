@@ -83,7 +83,7 @@ function getToken(): string {
   return token;
 }
 
-function buildSystemPrompt(today: Date): string {
+function buildSystemPrompt(today: Date, current?: AiParsedEvent[]): string {
   // Use Asia/Makassar local date, not UTC. Near midnight UTC, the UTC date
   // is the day before in WITA, which makes "Senin terdekat" off by a day.
   const iso = new Intl.DateTimeFormat("en-CA", { timeZone: TIMEZONE }).format(today);
@@ -91,10 +91,12 @@ function buildSystemPrompt(today: Date): string {
     weekday: "long",
     timeZone: TIMEZONE,
   });
-  return [
+  const lines = [
     "Kamu adalah AI scheduling assistant untuk myKalender, aplikasi kalender personal user Indonesia.",
     `Tanggal hari ini: ${iso} (${dayName}), zona waktu ${TIMEZONE} (WITA, UTC+8).`,
-    "Tugas: parse deskripsi natural language dari user jadi daftar event terstruktur.",
+    current && current.length > 0
+      ? "Mode: REFINE. User sudah punya event dalam preview (lihat di bawah). Mereka kasih instruksi tambahan. Update daftar event sesuai instruksi (tambah, ubah, atau hapus), lalu return DAFTAR LENGKAP hasil akhirnya. Jangan return cuma diff."
+      : "Mode: FRESH. Parse deskripsi natural language dari user jadi daftar event terstruktur.",
     "",
     "Aturan:",
     "- Output WAJIB valid JSON sesuai schema. Field tambahan dilarang.",
@@ -109,18 +111,27 @@ function buildSystemPrompt(today: Date): string {
     "- Title harus ringkas dan deskriptif (kapitalisasi normal, bukan ALL CAPS).",
     "- Description opsional, isi context tambahan dari prompt (lokasi, dosen, dll) kalau ada.",
     "- Kalau prompt ambigu atau gak ada event yang bisa di-extract, kembalikan events: [].",
-  ].join("\n");
+  ];
+  if (current && current.length > 0) {
+    lines.push(
+      "",
+      "Event saat ini di preview (JSON):",
+      JSON.stringify(current, null, 2),
+    );
+  }
+  return lines.join("\n");
 }
 
 export async function parseSchedulePrompt(
   prompt: string,
+  currentEvents?: AiParsedEvent[],
 ): Promise<AiParsedEvent[]> {
   const token = getToken();
   const today = new Date();
   const body = {
     model: MODEL,
     messages: [
-      { role: "system" as const, content: buildSystemPrompt(today) },
+      { role: "system" as const, content: buildSystemPrompt(today, currentEvents) },
       { role: "user" as const, content: prompt },
     ] satisfies ChatMessage[],
     response_format: {

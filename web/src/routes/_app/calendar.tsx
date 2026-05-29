@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Timestamp } from "firebase/firestore";
 import { auth } from "../../lib/firebase";
@@ -35,6 +35,7 @@ import { DayView, WeekView } from "../../components/WeekView";
 import { EventDialog } from "../../components/EventDialog";
 import { Sidebar } from "../../components/Sidebar";
 import { SidePanel } from "../../components/SidePanel";
+import { AiChatPanel } from "../../components/AiChatPanel";
 
 type CalendarView = "month" | "week" | "day";
 
@@ -99,6 +100,7 @@ function CalendarPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogDate, setDialogDate] = useState<Date>(new Date());
   const [editing, setEditing] = useState<CalendarEvent | null>(null);
+  const [aiPanelOpen, setAiPanelOpen] = useState(false);
 
   const range = useMemo(() => {
     if (view === "month") {
@@ -356,14 +358,24 @@ function CalendarPage() {
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={handleCreate}
-          className="lg:hidden absolute bottom-5 right-5 w-14 h-14 rounded-full bg-primary text-on-primary shadow-lg flex items-center justify-center hover:bg-primary-active transition"
-          aria-label="Tambah jadwal"
-        >
-          <Plus size={24} />
-        </button>
+        <div className="lg:hidden absolute bottom-5 right-5 flex flex-col items-end gap-3">
+          <button
+            type="button"
+            onClick={() => setAiPanelOpen(true)}
+            className="w-12 h-12 rounded-full bg-canvas border border-hairline text-ink shadow-md flex items-center justify-center hover:bg-surface-soft transition"
+            aria-label="AI Jadwal"
+          >
+            <Sparkles size={18} />
+          </button>
+          <button
+            type="button"
+            onClick={handleCreate}
+            className="w-14 h-14 rounded-full bg-primary text-on-primary shadow-lg flex items-center justify-center hover:bg-primary-active transition"
+            aria-label="Tambah jadwal"
+          >
+            <Plus size={24} />
+          </button>
+        </div>
       </main>
 
       <div className="hidden lg:flex">
@@ -371,6 +383,8 @@ function CalendarPage() {
           events={filteredEvents}
           onQuickAdd={handleCreate}
           onEventClick={handleEventClick}
+          onOpenAi={() => setAiPanelOpen(true)}
+          aiActive={aiPanelOpen}
         />
       </div>
 
@@ -382,6 +396,10 @@ function CalendarPage() {
           onSave={handleSave}
           onDelete={editing ? handleDelete : undefined}
         />
+      ) : null}
+
+      {aiPanelOpen ? (
+        <AiChatPanel onClose={() => setAiPanelOpen(false)} />
       ) : null}
     </>
   );
