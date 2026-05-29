@@ -1,0 +1,43 @@
+# Secrets — never commit
+.archive/
+**/.env
+**/.env.local
+**/.env.*.local
+android/keystore.properties
+
+# Build artifacts
+node_modules/
+**/node_modules/
+**/dist/
+**/build/
+**/.gradle/
+**/.next/
+**/.turbo/
+
+# IDE / OS
+.DS_Store
+*.iml
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.cursor/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Firebase
+.firebase/
+firebase-debug.log*
+firestore-debug.log*
+
+# Android local config
+android/local.properties
+
+# TanStack Router auto-generated
+web/src/routeTree.gen.ts
+
+# Old cleanup
+docs/stitch_mykalender_unified_ai_dashboard*/
