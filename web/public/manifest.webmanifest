@@ -1,0 +1,43 @@
+{
+  "name": "myKalender",
+  "short_name": "myKalender",
+  "description": "Kalender pribadi dengan reminder yang bunyi seperti alarm beneran.",
+  "start_url": "/calendar",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#111111",
+  "lang": "id",
+  "icons": [
+    {
+      "src": "/favicon-32.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Tambah jadwal",
+      "url": "/calendar",
+      "description": "Buka kalender langsung"
+    },
+    {
+      "name": "Pengaturan",
+      "url": "/settings",
+      "description": "Atur preferensi dan sync"
+    }
+  ]
+}
