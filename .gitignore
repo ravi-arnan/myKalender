@@ -43,6 +43,7 @@ android/local.properties
 
 # TanStack Router auto-generated
 web/src/routeTree.gen.ts
+**/.tanstack/
 
 # Old cleanup
 docs/stitch_mykalender_unified_ai_dashboard*/
