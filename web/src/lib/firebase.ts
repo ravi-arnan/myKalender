@@ -6,7 +6,7 @@ import {
   type User,
   type UserCredential,
 } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -19,7 +19,11 @@ const firebaseConfig = {
 
 export const firebaseApp = initializeApp(firebaseConfig);
 export const auth = getAuth(firebaseApp);
-export const db = getFirestore(firebaseApp);
+// ignoreUndefinedProperties so writes with optional fields left undefined
+// (e.g. an event with no description or recurrence) don't throw.
+export const db = initializeFirestore(firebaseApp, {
+  ignoreUndefinedProperties: true,
+});
 
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.addScope("https://www.googleapis.com/auth/calendar.readonly");

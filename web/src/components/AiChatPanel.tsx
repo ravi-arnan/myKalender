@@ -249,7 +249,9 @@ export function AiChatPanel({ onClose }: AiChatPanelProps) {
 
     const parts = [`${created} jadwal ditambahkan`];
     if (pushToGcal) parts.push(`${pushed} pushed ke Google Calendar`);
-    if (failures.length) parts.push(`${failures.length} gagal`);
+    if (failures.length) {
+      parts.push(`${failures.length} gagal (${failures.join("; ")})`);
+    }
 
     setMessages((m) => {
       const marked = m.map((msg) =>
