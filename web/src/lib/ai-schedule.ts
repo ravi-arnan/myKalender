@@ -43,7 +43,7 @@ const EVENT_SCHEMA = {
         additionalProperties: false,
         properties: {
           title: { type: "string" },
-          description: { type: "string" },
+          description: { type: ["string", "null"] },
           startDate: {
             type: "string",
             description: "ISO date YYYY-MM-DD in the user's local timezone",
@@ -62,6 +62,7 @@ const EVENT_SCHEMA = {
         },
         required: [
           "title",
+          "description",
           "startDate",
           "startTime",
           "endTime",
