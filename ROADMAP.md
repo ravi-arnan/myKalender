@@ -78,6 +78,10 @@ Status: **Phase 1 (Web) + Phase 2 (Android alarm) selesai 2026-05-29.** Core req
   - Events namespaced via doc id `gcal_<email>_<eventId>` + field `accountEmail`
   - Disconnect: hapus semua events dari akun itu + hapus metadata
   - Re-auth via popup setiap sync (token gak persist)
+  - **Android parity** — done 2026-05-30
+    - Tab "Akun" pakai GoogleSignIn (account picker + consent `calendar.readonly`) → bearer token via `GoogleAuthUtil`
+    - Skema Firestore identik web: `connectedAccounts/{email}` + event id `gcal_<email>_<eventId>` + `accountEmail`
+    - Refresh per-akun + disconnect (hapus event impor akun itu); core library desugaring untuk `java.time` di minSdk 24
 - [x] **Sync Google Calendar push 2-arah** — done 2026-05-29
   - Checkbox "Sinkronkan ke Google Calendar" di EventDialog (cuma untuk event manual)
   - createEvent dengan push → POST ke GCal, simpan gcalEventId
