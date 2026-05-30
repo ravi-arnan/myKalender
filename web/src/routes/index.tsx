@@ -894,6 +894,12 @@ function Footer() {
             Google kamu.
           </p>
           <div className="flex items-center gap-4 text-[11px] text-on-dark-soft/70">
+            <Link
+              to="/privacy"
+              className="hover:text-on-dark transition"
+            >
+              Kebijakan Privasi
+            </Link>
             <span className="inline-flex items-center gap-1.5">
               <Shield size={11} />
               v0.1.0
