@@ -51,9 +51,23 @@ import id.raviarnan.mykalender.R
 import id.raviarnan.mykalender.data.Event
 import id.raviarnan.mykalender.permissions.PermissionStatusBanner
 import kotlinx.coroutines.delay
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.ui.graphics.Color
 import java.text.SimpleDateFormat
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Date
 import java.util.Locale
+
+enum class EventsView { List, Calendar }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,6 +80,7 @@ fun EventsScreen(
     onEditEvent: (Event) -> Unit,
 ) {
     var isRefreshing by remember { mutableStateOf(false) }
+    var viewMode by remember { mutableStateOf(EventsView.List) }
     LaunchedEffect(isRefreshing) {
         if (isRefreshing) {
             onRefresh()
@@ -89,21 +104,31 @@ fun EventsScreen(
                     onOpenSheet = onOpenPermissionsSheet,
                 )
 
-                SectionHeading(eventsCount = events.size)
+                EventsHeader(
+                    eventsCount = events.size,
+                    viewMode = viewMode,
+                    onViewModeChange = { viewMode = it },
+                )
 
-                if (events.isEmpty()) {
-                    EmptyState()
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        items(events, key = { it.id }) { event ->
-                            EventCard(event = event, onClick = { onEditEvent(event) })
+                when (viewMode) {
+                    EventsView.List ->
+                        if (events.isEmpty()) {
+                            EmptyState()
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                items(events, key = { it.id }) { event ->
+                                    EventCard(event = event, onClick = { onEditEvent(event) })
+                                }
+                                item { Spacer(Modifier.height(96.dp)) }
+                            }
                         }
-                        item { Spacer(Modifier.height(96.dp)) }
-                    }
+
+                    EventsView.Calendar ->
+                        CalendarView(events = events, onEditEvent = onEditEvent)
                 }
             }
         }
@@ -136,7 +161,11 @@ private fun TopBar() {
 }
 
 @Composable
-private fun SectionHeading(eventsCount: Int) {
+private fun EventsHeader(
+    eventsCount: Int,
+    viewMode: EventsView,
+    onViewModeChange: (EventsView) -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -155,6 +184,197 @@ private fun SectionHeading(eventsCount: Int) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        Spacer(Modifier.height(12.dp))
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            SegmentedButton(
+                selected = viewMode == EventsView.List,
+                onClick = { onViewModeChange(EventsView.List) },
+                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+            ) { Text("List") }
+            SegmentedButton(
+                selected = viewMode == EventsView.Calendar,
+                onClick = { onViewModeChange(EventsView.Calendar) },
+                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+            ) { Text("Kalender") }
+        }
+    }
+}
+
+/**
+ * Month grid over the upcoming events. Days that have at least one event get a
+ * dot; tapping a day lists that day's events below. Only upcoming events are
+ * loaded (start >= now), so past days never carry markers — matching the
+ * "Jadwal Mendatang" framing.
+ */
+@Composable
+private fun CalendarView(
+    events: List<Event>,
+    onEditEvent: (Event) -> Unit,
+) {
+    val zone = remember { ZoneId.systemDefault() }
+    val eventsByDay = remember(events) {
+        events.groupBy { it.start.toDate().toInstant().atZone(zone).toLocalDate() }
+    }
+    val today = remember { LocalDate.now() }
+    var month by remember { mutableStateOf(YearMonth.from(today)) }
+    var selected by remember { mutableStateOf(today) }
+
+    val monthFmt = remember { DateTimeFormatter.ofPattern("MMMM yyyy", Locale("id", "ID")) }
+    val dayHeaderFmt = remember { DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale("id", "ID")) }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 20.dp, end = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = month.atDay(1).format(monthFmt)
+                    .replaceFirstChar { it.uppercase() },
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(onClick = { month = month.minusMonths(1) }) {
+                Icon(Icons.Filled.KeyboardArrowLeft, contentDescription = "Bulan sebelumnya")
+            }
+            IconButton(onClick = { month = month.plusMonths(1) }) {
+                Icon(Icons.Filled.KeyboardArrowRight, contentDescription = "Bulan berikutnya")
+            }
+        }
+
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+            listOf("Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min").forEach { d ->
+                Text(
+                    text = d,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+
+        val leadingBlanks = month.atDay(1).dayOfWeek.value - 1 // Mon = 0
+        val daysInMonth = month.lengthOfMonth()
+        val rows = (leadingBlanks + daysInMonth + 6) / 7
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+            for (row in 0 until rows) {
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    for (col in 0 until 7) {
+                        val dayNum = row * 7 + col - leadingBlanks + 1
+                        if (dayNum in 1..daysInMonth) {
+                            val date = month.atDay(dayNum)
+                            DayCell(
+                                day = dayNum,
+                                isToday = date == today,
+                                isSelected = date == selected,
+                                hasEvents = eventsByDay.containsKey(date),
+                                onClick = { selected = date },
+                                modifier = Modifier.weight(1f),
+                            )
+                        } else {
+                            Spacer(Modifier.weight(1f))
+                        }
+                    }
+                }
+            }
+        }
+
+        HorizontalDivider(
+            color = MaterialTheme.colorScheme.outline,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+
+        Text(
+            text = selected.format(dayHeaderFmt).replaceFirstChar { it.uppercase() },
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+        )
+
+        val dayEvents = eventsByDay[selected].orEmpty()
+        if (dayEvents.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxWidth().padding(24.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "Tidak ada jadwal di tanggal ini",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                items(dayEvents, key = { it.id }) { event ->
+                    EventCard(event = event, onClick = { onEditEvent(event) })
+                }
+                item { Spacer(Modifier.height(96.dp)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DayCell(
+    day: Int,
+    isToday: Boolean,
+    isSelected: Boolean,
+    hasEvents: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .height(46.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(30.dp)
+                .clip(CircleShape)
+                .background(
+                    if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                )
+                .then(
+                    if (isToday && !isSelected) {
+                        Modifier.border(1.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                    } else {
+                        Modifier
+                    },
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = day.toString(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (isSelected) {
+                    MaterialTheme.colorScheme.onPrimary
+                } else {
+                    MaterialTheme.colorScheme.onBackground
+                },
+            )
+        }
+        Box(
+            modifier = Modifier
+                .padding(top = 3.dp)
+                .size(5.dp)
+                .clip(CircleShape)
+                .background(
+                    if (hasEvents) MaterialTheme.colorScheme.primary else Color.Transparent,
+                ),
+        )
     }
 }
 
