@@ -1,9 +1,11 @@
-// GitHub Models client for natural-language schedule parsing.
-// Token is exposed to the client bundle via VITE_GITHUB_MODELS_TOKEN.
-// Risk note: this is a single-user app; for multi-tenant deployments the call
-// should be proxied through a serverless function so the PAT stays server-side.
+// Client for natural-language schedule parsing.
+// The GitHub Models PAT is NOT in the client bundle: requests go through a
+// Cloudflare Worker proxy (see /worker) that holds the PAT server-side and
+// verifies the caller's Firebase ID token. VITE_AI_PROXY_URL is the worker URL
+// (public, not a secret).
 
-const ENDPOINT = "https://models.github.ai/inference/chat/completions";
+import { auth } from "./firebase";
+
 const MODEL = "openai/gpt-4o-mini";
 const TIMEZONE = "Asia/Makassar";
 
@@ -73,14 +75,20 @@ const EVENT_SCHEMA = {
   required: ["events"],
 } as const;
 
-function getToken(): string {
-  const token = import.meta.env.VITE_GITHUB_MODELS_TOKEN as string | undefined;
-  if (!token) {
+function getProxyUrl(): string {
+  const url = import.meta.env.VITE_AI_PROXY_URL as string | undefined;
+  if (!url) {
     throw new Error(
-      "VITE_GITHUB_MODELS_TOKEN belum di-set. Tambahkan di web/.env.local lalu restart dev server.",
+      "VITE_AI_PROXY_URL belum di-set. Deploy worker AI (lihat /worker) lalu tambahkan URL-nya di web/.env.local.",
     );
   }
-  return token;
+  return url;
+}
+
+async function getIdToken(): Promise<string> {
+  const user = auth.currentUser;
+  if (!user) throw new Error("Harus sign-in dulu untuk pakai AI Jadwal");
+  return user.getIdToken();
 }
 
 function buildSystemPrompt(today: Date, current?: AiParsedEvent[]): string {
@@ -126,7 +134,8 @@ export async function parseSchedulePrompt(
   prompt: string,
   currentEvents?: AiParsedEvent[],
 ): Promise<AiParsedEvent[]> {
-  const token = getToken();
+  const proxyUrl = getProxyUrl();
+  const idToken = await getIdToken();
   const today = new Date();
   const body = {
     model: MODEL,
@@ -145,10 +154,10 @@ export async function parseSchedulePrompt(
     temperature: 0.2,
   };
 
-  const response = await fetch(ENDPOINT, {
+  const response = await fetch(proxyUrl, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${idToken}`,
       "Content-Type": "application/json",
       Accept: "application/json",
     },
@@ -158,7 +167,7 @@ export async function parseSchedulePrompt(
   if (!response.ok) {
     const text = await response.text().catch(() => "");
     throw new Error(
-      `GitHub Models error ${response.status}: ${text || response.statusText}`,
+      `AI proxy error ${response.status}: ${text || response.statusText}`,
     );
   }
 

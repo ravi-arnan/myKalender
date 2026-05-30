@@ -1,0 +1,9 @@
+name = "mykalender-ai"
+main = "src/index.js"
+compatibility_date = "2025-04-01"
+
+# Non-secret config. The GitHub PAT is stored as a secret instead:
+#   npx wrangler secret put GITHUB_MODELS_TOKEN
+[vars]
+FIREBASE_PROJECT_ID = "mykalender-cad8f"
+ALLOWED_ORIGINS = "https://mykalender-cad8f.web.app,https://mykalender-cad8f.firebaseapp.com,http://localhost:5173"
