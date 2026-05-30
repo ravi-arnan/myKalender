@@ -34,6 +34,34 @@ interface GoogleCalendarEventInput {
 const CALENDAR_API_BASE = "https://www.googleapis.com/calendar/v3";
 const DEFAULT_DAYS_AHEAD = 365;
 
+// Google Calendar descriptions can contain HTML (<p>, <strong>, <br>, entities
+// like &amp;). Only convert when it actually looks like HTML so plain-text
+// descriptions with real line breaks are left untouched.
+const HTML_LIKE = /<[a-z/!][^>]*>|&[a-z#0-9]+;/i;
+
+function htmlToPlainText(raw: string | undefined): string | undefined {
+  const trimmed = raw?.trim();
+  if (!trimmed) return undefined;
+  if (!HTML_LIKE.test(trimmed)) return trimmed;
+
+  let text = trimmed
+    .replace(/<\s*br\s*\/?\s*>/gi, "\n")
+    .replace(/<\s*\/\s*(p|div|li|h[1-6]|tr|ul|ol)\s*>/gi, "\n")
+    .replace(/<\s*li[^>]*>/gi, "• ")
+    .replace(/<[^>]+>/g, "");
+
+  // Decode HTML entities via the DOM.
+  const el = document.createElement("textarea");
+  el.innerHTML = text;
+  text = el.value;
+
+  text = text
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return text || undefined;
+}
+
 async function fetchCalendarEvents(
   token: string,
   calendarId: string,
@@ -126,7 +154,7 @@ export async function syncCalendarForAccount(
     const docId = `gcal_${normalizedEmail}_${ev.id}`;
     await upsertEventById(uid, docId, {
       title: ev.summary?.trim() || "(tanpa judul)",
-      description: ev.description?.trim() || undefined,
+      description: htmlToPlainText(ev.description),
       start: start.ts,
       end: end.ts,
       allDay: start.allDay,
@@ -177,7 +205,7 @@ export async function syncIndonesianHolidays(
     const docId = `gcal_holiday_${ev.id}`;
     await upsertEventById(uid, docId, {
       title: ev.summary?.trim() || "(libur)",
-      description: ev.description?.trim() || undefined,
+      description: htmlToPlainText(ev.description),
       start: start.ts,
       end: end.ts,
       allDay: start.allDay,
