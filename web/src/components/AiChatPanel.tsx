@@ -80,12 +80,22 @@ export function AiChatPanel({ onClose }: AiChatPanelProps) {
   });
   const [visible, setVisible] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     // Trigger slide-in on next frame so the initial render starts off-screen.
     const id = requestAnimationFrame(() => setVisible(true));
     return () => cancelAnimationFrame(id);
   }, []);
+
+  // Auto-grow the input with its content (WhatsApp-style), capped at a max
+  // height beyond which it scrolls.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, [input]);
 
   const handleClose = useCallback(() => {
     setVisible(false);
@@ -376,6 +386,7 @@ export function AiChatPanel({ onClose }: AiChatPanelProps) {
           <div className="p-3">
             <div className="rounded-lg border border-hairline focus-within:border-ink transition bg-canvas">
               <textarea
+                ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -384,9 +395,9 @@ export function AiChatPanel({ onClose }: AiChatPanelProps) {
                     ? "Refine lagi, misal: ubah jam jadi 9 pagi..."
                     : "Ketik rencana kamu..."
                 }
-                rows={2}
+                rows={1}
                 disabled={generating}
-                className="w-full px-3 py-2.5 text-sm text-ink bg-transparent placeholder:text-muted-soft focus:outline-none resize-none"
+                className="w-full px-3 py-2.5 text-sm text-ink bg-transparent placeholder:text-muted-soft focus:outline-none resize-none overflow-y-auto"
               />
               <div className="flex items-center justify-between px-3 pb-2">
                 <span className="text-[10px] text-muted-soft">
