@@ -193,6 +193,7 @@ private fun AppRoot(
                 Tab.Money -> MoneyScreen(uid = user.uid)
 
                 Tab.Accounts -> AccountsScreen(
+                    uid = user.uid,
                     userEmail = user.email,
                     userName = user.displayName,
                 )
