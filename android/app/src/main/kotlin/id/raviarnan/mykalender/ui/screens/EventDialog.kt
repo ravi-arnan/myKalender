@@ -2,6 +2,8 @@ package id.raviarnan.mykalender.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -40,6 +42,7 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -90,7 +93,7 @@ private val RECURRENCE_OPTIONS = listOf(
     RecurrenceChoice("monthly", "Setiap bulan"),
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun EventDialog(
     existing: Event?,
@@ -117,7 +120,12 @@ fun EventDialog(
     var startMillis by remember { mutableStateOf(now.timeInMillis) }
     var endMillis by remember { mutableStateOf(end.timeInMillis) }
     var allDay by remember { mutableStateOf(existing?.allDay ?: false) }
-    var reminderOffset by remember { mutableStateOf(existing?.reminderOffsetMinutes ?: 20L) }
+    var reminderOffsets by remember {
+        val initial = (existing?.reminderOffsetsMinutes?.takeIf { it.isNotEmpty() }
+            ?: listOf(existing?.reminderOffsetMinutes ?: 20L))
+            .filter { it >= 0 }.distinct().sorted()
+        mutableStateOf(initial)
+    }
     var soundUri by remember { mutableStateOf(existing?.alarmSoundUri) }
     var recurrence by remember { mutableStateOf(existing?.recurrence ?: "none") }
     var alarmMode by remember { mutableStateOf(existing?.alarmMode ?: "alarm") }
@@ -152,7 +160,6 @@ fun EventDialog(
     var showDatePicker by remember { mutableStateOf(false) }
     var showStartTimePicker by remember { mutableStateOf(false) }
     var showEndTimePicker by remember { mutableStateOf(false) }
-    var reminderMenuOpen by remember { mutableStateOf(false) }
 
     val dateFmt = remember { SimpleDateFormat("EEEE, d MMM yyyy", Locale("id", "ID")) }
     val timeFmt = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
@@ -166,7 +173,8 @@ fun EventDialog(
             start = Timestamp(Date(startMillis)),
             end = Timestamp(Date(endMillis)),
             allDay = allDay,
-            reminderOffsetMinutes = reminderOffset,
+            reminderOffsetMinutes = reminderOffsets.minOrNull() ?: 20L,
+            reminderOffsetsMinutes = reminderOffsets.ifEmpty { listOf(20L) },
             source = existing?.source ?: "manual",
             gcalEventId = existing?.gcalEventId,
             alarmSoundUri = soundUri,
@@ -253,30 +261,20 @@ fun EventDialog(
                 }
 
                 Field(icon = Icons.Filled.Notifications, label = "Alarm") {
-                    Box {
-                        OutlinedButton(
-                            onClick = { reminderMenuOpen = true },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(
-                                text = REMINDER_OPTIONS.find { it.minutes == reminderOffset }?.label
-                                    ?: "$reminderOffset menit sebelum",
-                                modifier = Modifier.weight(1f),
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        REMINDER_OPTIONS.forEach { opt ->
+                            val selected = reminderOffsets.contains(opt.minutes)
+                            FilterChip(
+                                selected = selected,
+                                onClick = {
+                                    reminderOffsets = if (selected) {
+                                        reminderOffsets - opt.minutes
+                                    } else {
+                                        (reminderOffsets + opt.minutes).sorted()
+                                    }
+                                },
+                                label = { Text(opt.label) },
                             )
-                        }
-                        DropdownMenu(
-                            expanded = reminderMenuOpen,
-                            onDismissRequest = { reminderMenuOpen = false },
-                        ) {
-                            REMINDER_OPTIONS.forEach { opt ->
-                                DropdownMenuItem(
-                                    text = { Text(opt.label) },
-                                    onClick = {
-                                        reminderOffset = opt.minutes
-                                        reminderMenuOpen = false
-                                    },
-                                )
-                            }
                         }
                     }
                 }

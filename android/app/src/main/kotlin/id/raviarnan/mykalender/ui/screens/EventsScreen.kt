@@ -446,14 +446,18 @@ private fun EventCard(event: Event, onClick: () -> Unit) {
                     )
                 }
                 Spacer(Modifier.height(10.dp))
-                ReminderChip(event.reminderOffsetMinutes)
+                ReminderChip(event.effectiveOffsets)
             }
         }
     }
 }
 
 @Composable
-private fun ReminderChip(minutes: Long) {
+private fun ReminderChip(offsets: List<Long>) {
+    if (offsets.isEmpty()) return
+    val sorted = offsets.distinct().sorted()
+    val text = formatReminder(sorted.first()) +
+        if (sorted.size > 1) " +${sorted.size - 1}" else ""
     Row(
         modifier = Modifier
             .border(
@@ -472,7 +476,7 @@ private fun ReminderChip(minutes: Long) {
         )
         Spacer(Modifier.size(6.dp))
         Text(
-            text = formatReminder(minutes),
+            text = text,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

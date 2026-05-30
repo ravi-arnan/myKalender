@@ -8,7 +8,7 @@ import {
   X,
 } from "lucide-react";
 import { useState } from "react";
-import type { CalendarEvent } from "../lib/types";
+import { effectiveReminderOffsets, type CalendarEvent } from "../lib/types";
 import { formatTime } from "../lib/date-utils";
 
 type ActivePanel = null | "bell" | "phone";
@@ -180,12 +180,17 @@ function BellPanel({
                   <span className="text-xs text-muted">
                     {formatRelative(ev.start.toDate())}
                   </span>
-                  {ev.reminderOffsetMinutes >= 0 ? (
-                    <span className="text-[10px] text-muted-soft inline-flex items-center gap-1">
-                      <BellRing size={10} />
-                      {formatOffset(ev.reminderOffsetMinutes)}
-                    </span>
-                  ) : null}
+                  {(() => {
+                    const offs = effectiveReminderOffsets(ev);
+                    if (offs.length === 0) return null;
+                    return (
+                      <span className="text-[10px] text-muted-soft inline-flex items-center gap-1">
+                        <BellRing size={10} />
+                        {formatOffset(offs[0])}
+                        {offs.length > 1 ? ` +${offs.length - 1}` : ""}
+                      </span>
+                    );
+                  })()}
                 </div>
               </button>
             </li>

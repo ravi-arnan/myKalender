@@ -43,9 +43,19 @@ export function EventDialog({
   const [startTime, setStartTime] = useState(formatTimeInput(startDate));
   const [endTime, setEndTime] = useState(formatTimeInput(endDate));
   const [allDay, setAllDay] = useState(existing?.allDay ?? false);
-  const [reminderOffset, setReminderOffset] = useState(
-    existing?.reminderOffsetMinutes ?? 20,
-  );
+  const [reminderOffsets, setReminderOffsets] = useState<number[]>(() => {
+    const arr = existing?.reminderOffsetsMinutes?.length
+      ? existing.reminderOffsetsMinutes
+      : [existing?.reminderOffsetMinutes ?? 20];
+    return [...new Set(arr)].filter((n) => n >= 0).sort((a, b) => a - b);
+  });
+  function toggleReminder(value: number) {
+    setReminderOffsets((prev) =>
+      prev.includes(value)
+        ? prev.filter((v) => v !== value)
+        : [...prev, value].sort((a, b) => a - b),
+    );
+  }
   const [recurrence, setRecurrence] = useState<RecurrencePreset>(
     existing?.recurrence ?? "none",
   );
@@ -98,7 +108,10 @@ export function EventDialog({
           start: Timestamp.fromDate(startDt),
           end: Timestamp.fromDate(endDt),
           allDay,
-          reminderOffsetMinutes: reminderOffset,
+          reminderOffsetMinutes: reminderOffsets.length
+            ? Math.min(...reminderOffsets)
+            : 20,
+          reminderOffsetsMinutes: reminderOffsets.length ? reminderOffsets : [20],
           source: existing?.source ?? "manual",
           gcalEventId: existing?.gcalEventId,
           recurrence: recurrence === "none" ? undefined : recurrence,
@@ -202,17 +215,28 @@ export function EventDialog({
             )}
 
             <Field icon={<Bell size={16} />} label="Alarm">
-              <select
-                value={reminderOffset}
-                onChange={(e) => setReminderOffset(Number(e.target.value))}
-                className="w-full px-3 py-2 rounded-md border border-hairline focus:outline-none focus:border-ink text-sm text-ink bg-canvas"
-              >
-                {REMINDER_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+              <div className="flex flex-wrap gap-1.5">
+                {REMINDER_OPTIONS.map((opt) => {
+                  const active = reminderOffsets.includes(opt.value);
+                  return (
+                    <button
+                      type="button"
+                      key={opt.value}
+                      onClick={() => toggleReminder(opt.value)}
+                      className={`px-2.5 py-1 rounded-full text-xs border transition ${
+                        active
+                          ? "bg-ink text-on-primary border-ink"
+                          : "bg-canvas text-body border-hairline hover:border-ink"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-muted mt-1.5">
+                Pilih satu atau beberapa — alarm berbunyi di tiap waktu.
+              </p>
             </Field>
 
             <Field icon={<Repeat size={16} />} label="Pengulangan">

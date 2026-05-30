@@ -43,6 +43,9 @@ export interface CalendarEvent {
   end: Timestamp;
   allDay: boolean;
   reminderOffsetMinutes: number;
+  // Multiple reminders per event. When present (non-empty) this is the source
+  // of truth; legacy events without it fall back to [reminderOffsetMinutes].
+  reminderOffsetsMinutes?: number[];
   source: EventSource;
   gcalEventId?: string;
   accountEmail?: string;
@@ -66,3 +69,19 @@ export const REMINDER_OPTIONS = [
   { label: "1 jam sebelum", value: 60 },
   { label: "1 hari sebelum", value: 60 * 24 },
 ] as const;
+
+/**
+ * The reminder offsets that actually apply to an event. Returns [] for events
+ * opted out of alarms (reminderOffsetMinutes < 0, e.g. imported holidays).
+ * Falls back to the single legacy field when the array isn't set.
+ */
+export function effectiveReminderOffsets(e: {
+  reminderOffsetMinutes: number;
+  reminderOffsetsMinutes?: number[];
+}): number[] {
+  if (e.reminderOffsetMinutes < 0) return [];
+  const arr = e.reminderOffsetsMinutes?.length
+    ? e.reminderOffsetsMinutes
+    : [e.reminderOffsetMinutes];
+  return [...new Set(arr)].filter((n) => n >= 0).sort((a, b) => a - b);
+}

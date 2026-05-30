@@ -19,7 +19,7 @@ export interface AiParsedEvent {
   endTime: string;   // HH:mm (24h), "23:59" when allDay
   allDay: boolean;
   recurrence: AiRecurrence;
-  reminderOffsetMinutes: number; // 0/5/10/20/30/60/1440
+  reminderOffsetsMinutes: number[]; // each 0/5/10/20/30/60/1440
 }
 
 interface ChatMessage {
@@ -55,9 +55,11 @@ const EVENT_SCHEMA = {
             type: "string",
             enum: ["none", "daily", "weekdays", "weekly", "monthly"],
           },
-          reminderOffsetMinutes: {
-            type: "integer",
-            description: "Minutes before event start (0, 5, 10, 20, 30, 60, or 1440)",
+          reminderOffsetsMinutes: {
+            type: "array",
+            items: { type: "integer" },
+            description:
+              "One or more reminders, minutes before start (each: 0, 5, 10, 20, 30, 60, or 1440). Usually one; use multiple only when the user asks for several alerts.",
           },
         },
         required: [
@@ -68,7 +70,7 @@ const EVENT_SCHEMA = {
           "endTime",
           "allDay",
           "recurrence",
-          "reminderOffsetMinutes",
+          "reminderOffsetsMinutes",
         ],
       },
     },
@@ -115,8 +117,8 @@ function buildSystemPrompt(today: Date, current?: AiParsedEvent[]): string {
     "  Untuk pola yang gak match preset (misal 'Selasa dan Kamis'), buat 1 event terpisah per hari pertama dengan recurrence='weekly'.",
     "- Jika user nyebut hari tanpa tanggal (misal 'Senin'), pakai Senin terdekat ke depan.",
     "- Jika tahun gak disebut, asumsikan tahun saat ini.",
-    "- reminderOffsetMinutes default 20 menit. Kalau user nyebut spesifik ('1 jam sebelum'), konvert.",
-    "  Nilai valid: 0, 5, 10, 20, 30, 60, 1440 (=1 hari). Pakai yang paling mendekati.",
+    "- reminderOffsetsMinutes: array menit sebelum mulai. Default [20]. Kalau user minta beberapa pengingat ('ingatkan 1 hari dan 1 jam sebelum'), isi beberapa, mis. [1440, 60].",
+    "  Nilai valid per item: 0, 5, 10, 20, 30, 60, 1440 (=1 hari). Pakai yang paling mendekati.",
     "- Title harus ringkas dan deskriptif (kapitalisasi normal, bukan ALL CAPS).",
     "- Description opsional, isi context tambahan dari prompt (lokasi, dosen, dll) kalau ada.",
     "- Kalau prompt ambigu atau gak ada event yang bisa di-extract, kembalikan events: [].",
@@ -200,15 +202,19 @@ function normalizeEvent(e: AiParsedEvent): AiParsedEvent {
   if (!TIME_RE.test(e.startTime) || !TIME_RE.test(e.endTime)) {
     throw new Error(`AI mengembalikan waktu tidak valid: ${e.startTime}-${e.endTime}`);
   }
-  const rawOffset = Number(e.reminderOffsetMinutes);
-  const offset = Number.isFinite(rawOffset)
-    ? VALID_OFFSETS.includes(rawOffset)
-      ? rawOffset
-      : closest(rawOffset, VALID_OFFSETS)
-    : 20;
+  const rawArr = Array.isArray(e.reminderOffsetsMinutes)
+    ? e.reminderOffsetsMinutes
+    : [];
+  const snapped = rawArr
+    .map((n) => Number(n))
+    .filter((n) => Number.isFinite(n))
+    .map((n) => (VALID_OFFSETS.includes(n) ? n : closest(n, VALID_OFFSETS)));
+  const offsets = snapped.length
+    ? [...new Set(snapped)].sort((a, b) => a - b)
+    : [20];
   return {
     ...e,
-    reminderOffsetMinutes: offset,
+    reminderOffsetsMinutes: offsets,
     allDay: Boolean(e.allDay),
     description: e.description?.trim() || undefined,
   };
