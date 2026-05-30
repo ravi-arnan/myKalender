@@ -125,7 +125,12 @@ fun AccountsScreen(
             OutlinedButton(
                 onClick = {
                     viewModel.clearMessage()
-                    launcher.launch(signInClient.signInIntent)
+                    // GoogleSignIn caches the last-used account and would silently
+                    // return it (skipping the picker), so sign out first to force
+                    // the account chooser every time and allow picking any account.
+                    signInClient.signOut().addOnCompleteListener {
+                        launcher.launch(signInClient.signInIntent)
+                    }
                 },
                 enabled = !state.adding,
                 modifier = Modifier.fillMaxWidth(),
