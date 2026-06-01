@@ -60,6 +60,29 @@ object PermissionsHelper {
         return channel.importance >= NotificationManager.IMPORTANCE_HIGH
     }
 
+    /**
+     * Android 14+ (API 34) no longer auto-grants USE_FULL_SCREEN_INTENT to
+     * regular apps, so the alarm can only show as a heads-up notification, not
+     * a full-screen takeover over the lock screen. Below API 34 it's implicit.
+     */
+    fun canUseFullScreenIntent(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return true
+        val nm: NotificationManager = context.getSystemService() ?: return false
+        return nm.canUseFullScreenIntent()
+    }
+
+    fun openFullScreenIntentSettings(context: Context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return
+        runCatching {
+            context.startActivity(
+                Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            )
+        }.onFailure { openAppDetails(context) }
+    }
+
     fun openExactAlarmSettings(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
         runCatching {

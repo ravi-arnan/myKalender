@@ -32,16 +32,31 @@ class AlarmRingingService : Service() {
     private var vibrator: Vibrator? = null
     private var wakeLock: PowerManager.WakeLock? = null
 
+    // Events currently ringing in this one session, in arrival order. When two
+    // events fire at the same time the service is started twice on the same
+    // instance; we coalesce them into a single ring instead of starting a second
+    // (orphaned) MediaPlayer, which is what caused doubled / overlapping audio.
+    private val ringingEvents = LinkedHashMap<String, String>()
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val eventId = intent?.getStringExtra(AlarmReceiver.EXTRA_EVENT_ID) ?: ""
         val title = intent?.getStringExtra(AlarmReceiver.EXTRA_TITLE) ?: ""
         val customUri = intent?.getStringExtra(AlarmReceiver.EXTRA_SOUND_URI)
-        startInForeground(NOTIF_ID, buildNotification(eventId, title))
-        acquireWakeLock()
-        startRinging(customUri?.let { runCatching { Uri.parse(it) }.getOrNull() })
-        startVibration()
+
+        val alreadyRinging = mediaPlayer != null
+        ringingEvents[eventId] = title
+
+        // Only the first event in a session owns the audio/vibration/wake lock and
+        // triggers the full-screen UI. Subsequent simultaneous events just refresh
+        // the notification count (no second full-screen launch, no second sound).
+        startInForeground(NOTIF_ID, buildNotification(withFullScreen = !alreadyRinging))
+        if (!alreadyRinging) {
+            acquireWakeLock()
+            startRinging(customUri?.let { runCatching { Uri.parse(it) }.getOrNull() })
+            startVibration()
+        }
         return START_NOT_STICKY
     }
 
@@ -49,10 +64,24 @@ class AlarmRingingService : Service() {
         stopRinging()
         stopVibration()
         releaseWakeLock()
+        ringingEvents.clear()
         super.onDestroy()
     }
 
-    private fun buildNotification(eventId: String, title: String): Notification {
+    /** Event identity used by the full-screen activity (Snooze/Stop target). */
+    private fun primaryEvent(): Map.Entry<String, String>? =
+        ringingEvents.entries.firstOrNull()
+
+    /** Notification/lock-screen text: first title, with "+N lainnya" if more. */
+    private fun displayText(): String {
+        val titles = ringingEvents.values.map { it.ifBlank { "Jadwal" } }
+        val first = titles.firstOrNull() ?: "Jadwal"
+        return if (titles.size > 1) "$first +${titles.size - 1} lainnya" else first
+    }
+
+    private fun buildNotification(withFullScreen: Boolean): Notification {
+        val eventId = primaryEvent()?.key ?: ""
+        val title = displayText()
         // Carry the event identity so AlarmActivity (launched via this
         // full-screen intent) shows the real title and Snooze targets the
         // right event — the receiver no longer starts the activity directly.
@@ -74,7 +103,7 @@ class AlarmRingingService : Service() {
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setContentIntent(pi)
-            .setFullScreenIntent(pi, true)
+            .apply { if (withFullScreen) setFullScreenIntent(pi, true) }
             .build()
     }
 

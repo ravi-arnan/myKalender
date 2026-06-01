@@ -225,6 +225,16 @@ fun rememberPermissionItems(refreshKey: Int = 0): List<PermissionItem> {
         onAction = { PermissionsHelper.openExactAlarmSettings(context) },
     )
 
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+        items += PermissionItem(
+            title = "Tampilan layar penuh",
+            description = "Wajib agar alarm muncul layar penuh nembus lock screen, bukan cuma notifikasi.",
+            isGranted = PermissionsHelper.canUseFullScreenIntent(context),
+            actionLabel = "Buka",
+            onAction = { PermissionsHelper.openFullScreenIntentSettings(context) },
+        )
+    }
+
     items += PermissionItem(
         title = "Tanpa optimisasi baterai",
         description = "Cegah sistem mematikan alarm di background.",
