@@ -3,6 +3,8 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDocs,
+  limit,
   onSnapshot,
   orderBy,
   query,
@@ -65,6 +67,27 @@ export async function upsertEventById(
       updatedAt: serverTimestamp(),
     },
     { merge: true },
+  );
+}
+
+/**
+ * One-shot fetch of upcoming events (start >= now), soonest first. Used by the
+ * global search overlay, which searches across all upcoming events rather than
+ * just the month currently in view. Capped to keep the read bounded.
+ */
+export async function fetchUpcomingEvents(
+  uid: string,
+  max = 300,
+): Promise<CalendarEvent[]> {
+  const q = query(
+    eventsCol(uid),
+    where("start", ">=", Timestamp.fromDate(new Date())),
+    orderBy("start", "asc"),
+    limit(max),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(
+    (d) => ({ id: d.id, ...d.data() }) as CalendarEvent,
   );
 }
 

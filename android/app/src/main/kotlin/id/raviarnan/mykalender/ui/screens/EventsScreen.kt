@@ -21,7 +21,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -30,6 +32,7 @@ import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -81,6 +84,18 @@ fun EventsScreen(
 ) {
     var isRefreshing by remember { mutableStateOf(false) }
     var viewMode by remember { mutableStateOf(EventsView.List) }
+    var query by remember { mutableStateOf("") }
+    val filtered = remember(events, query) {
+        val q = query.trim()
+        if (q.isBlank()) {
+            events
+        } else {
+            events.filter { e ->
+                e.title.contains(q, ignoreCase = true) ||
+                    (e.description?.contains(q, ignoreCase = true) == true)
+            }
+        }
+    }
     LaunchedEffect(isRefreshing) {
         if (isRefreshing) {
             onRefresh()
@@ -115,15 +130,20 @@ fun EventsScreen(
                         if (events.isEmpty()) {
                             EmptyState()
                         } else {
-                            LazyColumn(
-                                modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
-                                verticalArrangement = Arrangement.spacedBy(10.dp),
-                            ) {
-                                items(events, key = { it.id }) { event ->
-                                    EventCard(event = event, onClick = { onEditEvent(event) })
+                            EventSearchField(query = query, onQueryChange = { query = it })
+                            if (filtered.isEmpty()) {
+                                NoResultsState(query)
+                            } else {
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                                ) {
+                                    items(filtered, key = { it.id }) { event ->
+                                        EventCard(event = event, onClick = { onEditEvent(event) })
+                                    }
+                                    item { Spacer(Modifier.height(96.dp)) }
                                 }
-                                item { Spacer(Modifier.height(96.dp)) }
                             }
                         }
 
@@ -197,6 +217,46 @@ private fun EventsHeader(
                 shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
             ) { Text("Kalender") }
         }
+    }
+}
+
+@Composable
+private fun EventSearchField(query: String, onQueryChange: (String) -> Unit) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+            .padding(bottom = 10.dp),
+        placeholder = { Text("Cari jadwal…") },
+        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+        trailingIcon = {
+            if (query.isNotEmpty()) {
+                IconButton(onClick = { onQueryChange("") }) {
+                    Icon(Icons.Filled.Close, contentDescription = "Hapus pencarian")
+                }
+            }
+        },
+        singleLine = true,
+        shape = RoundedCornerShape(12.dp),
+    )
+}
+
+@Composable
+private fun NoResultsState(query: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp, vertical = 32.dp),
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        Text(
+            text = "Tidak ada jadwal cocok dengan \"$query\"",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 

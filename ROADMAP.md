@@ -58,6 +58,12 @@ Status: **Phase 1 (Web) + Phase 2 (Android alarm) selesai 2026-05-29.** Core req
   - `.github/workflows/android.yml`: build debug APK on push, upload artifact (14-day retention)
   - `.github/workflows/web.yml`: typecheck + build verification dengan placeholder Firebase env
   - Release APK tetap build manual (keystore gak di-CI untuk keamanan)
+- [ ] **OAuth verification — hilangkan "Google hasn't verified this app"**
+  - Privacy policy page sudah siap (`/privacy`), tinggal langkah berurutan:
+    beli custom domain → connect Firebase Hosting → verifikasi Search Console →
+    isi OAuth consent screen → rekam demo video → submit ke Google
+  - Blocked: nunggu user beli domain (belum punya)
+- [ ] **Rotasi GitHub PAT** (opsional) — token sempat ke-expose di `.env.local` lokal
 
 ### Fitur fungsional besar
 - [x] **Sync Google Calendar import (1-arah, client-side)** — done 2026-05-29
@@ -92,7 +98,6 @@ Status: **Phase 1 (Web) + Phase 2 (Android alarm) selesai 2026-05-29.** Core req
   - SidePanel button (Sparkles) → slide-over chat panel dari kanan (`AiChatPanel`)
   - Chat UI: user bubble + assistant bubble + multi-message history per sesi panel
   - GitHub Models `openai/gpt-4o-mini` via `https://models.github.ai/inference`
-  - Token: `VITE_GITHUB_MODELS_TOKEN` di `.env.local` (PAT scope `models:read`)
   - Structured output via `response_format: json_schema` (strict mode)
   - Preview cards inline di AI bubble (checkbox per event) + "Tambah N" button
   - Optional toggle sinkron ke Google Calendar di footer panel
@@ -100,6 +105,13 @@ Status: **Phase 1 (Web) + Phase 2 (Android alarm) selesai 2026-05-29.** Core req
   - Reminder offset snap ke preset terdekat (0/5/10/20/30/60/1440)
   - Source = "manual", alarmMode = "alarm" → alarm Android fire otomatis via Firestore listener
   - Route `/ai` dihapus; AI murni sebagai panel di dalam calendar layout
+  - **PAT diamankan server-side via Cloudflare Worker proxy** — done 2026-05-31
+    - Worker `worker/` (`mykalender-ai.raviarnankeren.workers.dev`): simpan GitHub PAT
+      sebagai secret, verifikasi Firebase ID token (Google JWKs, RSASSA-PKCS1-v1_5),
+      CORS allowlist, pin model `openai/gpt-4o-mini`, forward ke GitHub Models
+    - Web `ai-schedule.ts`: tidak ada lagi `VITE_GITHUB_MODELS_TOKEN` client-side;
+      pakai `VITE_AI_PROXY_URL` + kirim `Authorization: Bearer <firebaseIdToken>`
+    - Auto-grow chat input WhatsApp-style; `ignoreUndefinedProperties` di Firestore init
 - [x] **Mode alarm vs notifikasi per event** — done 2026-05-29
   - Field `alarmMode` ("alarm" | "notification") di Event (web + Android)
   - Web EventDialog + Android EventDialog: pilih "Alarm beneran" vs "Notifikasi biasa"
@@ -112,6 +124,43 @@ Status: **Phase 1 (Web) + Phase 2 (Android alarm) selesai 2026-05-29.** Core req
   - Vertikal ganti bulan khusus month view; week/day tetap scroll grid jam
   - Threshold + cooldown supaya 1 swipe = 1 langkah; `preventDefault` cegah back/forward browser
 - [x] **Logo reveal splash** — done 2026-05-29 (pure CSS, sekali per sesi, hormati prefers-reduced-motion)
+- [x] **Multi-reminder per event** (beberapa alarm per event) — done 2026-05-31
+  - Field baru `reminderOffsetsMinutes: number[]` (web) / `List<Long>` (Android) — sumber
+    kebenaran saat non-empty; event lama fallback ke `reminderOffsetMinutes` tunggal
+  - Helper `effectiveReminderOffsets` / `Event.effectiveOffsets` (dedupe, sort, buang negatif)
+  - EventDialog web + Android: multi-select chip preset (0/5/10/20/30/60/1440)
+  - AI generator hasilkan array offset (snap + dedupe), default `[20]`
+  - Android `AlarmScheduler`: satu alarm per offset (request code `"$id@$offset".hashCode()`),
+    offset di-persist di SharedPreferences `scheduled_alarms` supaya `cancel()` bisa
+    tear-down semua; `reconcile` budget per total alarm (MAX_ALARMS=450, cost = offsets+1)
+  - Backward-compatible: GCal sync, bills, holidays tetap set field tunggal
+- [x] **List/Calendar view toggle di Android** — done 2026-05-30
+  - Layar jadwal mendatang: SegmentedButton List vs Calendar (`EventsView` enum)
+  - Calendar view: grid bulanan (`CalendarView` + `DayCell`), List view: kartu event
+- [x] **Widget home screen Android** — done 2026-06-01
+  - `widget/NextEventWidgetProvider` (RemoteViews, AppWidgetProvider): tampilkan event
+    berikutnya (judul + "Hari ini/Besok/EEE 14:30 · N jam lagi") + tombol "+" quick-add
+  - Skip `gcal-holiday`; one-shot Firestore query (pakai offline cache), `goAsync()`
+  - Refresh: `updatePeriodMillis` 30 mnt + `requestUpdate()` dipanggil saat event berubah
+    (AppViewModel), alarm fire (AlarmReceiver), sign-out
+  - Quick-add: intent `EXTRA_OPEN_ADD_EVENT` → MainActivity (`singleTop`, `onNewIntent`)
+    buka dialog tambah event; body tap → buka app
+  - Light/dark via `values-night/colors.xml`; layout resizable 4x2
+- [x] **Cari event (web + Android)** — done 2026-06-01
+  - Android: kolom cari di mode List `EventsScreen` → filter jadwal mendatang
+    (judul + deskripsi, case-insensitive), state "tidak ada hasil"
+  - Web: `SearchOverlay` (command-palette) di toolbar → cari **semua** jadwal
+    mendatang (`fetchUpcomingEvents`, one-shot, cap 300), klik hasil → lompat ke
+    bulan event + buka dialog; tersedia di mobile & desktop. Filter Sidebar lama tetap
+- [x] **Fix alarm dobel + izin full-screen (Android)** — done 2026-06-01
+  - `AlarmRingingService`: gabungkan event yang bunyi bersamaan jadi satu sesi
+    (cegah `MediaPlayer` kedua yatim yang bikin suara numpuk); notif "+N lainnya"
+  - Android 14+: deteksi & minta izin `USE_FULL_SCREEN_INTENT` di PermissionsSheet
+    (`canUseFullScreenIntent` / `ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT`) — tanpa
+    izin ini alarm cuma heads-up, bukan layar penuh nembus lockscreen
+- [x] **Privacy policy page** — done 2026-05-31
+  - Route `/privacy` (Google API Services User Data Policy + Limited Use disclosure)
+  - Link footer di landing page — prasyarat untuk OAuth consent screen verification
 
 ### myDuit — modul keuangan (web) — MVP done 2026-05-29
 Modul pencatatan keuangan terintegrasi di dalam myKalender (route `/money`),

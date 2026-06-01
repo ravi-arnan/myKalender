@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ChevronLeft, ChevronRight, Plus, Sparkles } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Search, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Timestamp } from "firebase/firestore";
 import { auth } from "../../lib/firebase";
@@ -36,6 +36,7 @@ import { EventDialog } from "../../components/EventDialog";
 import { Sidebar } from "../../components/Sidebar";
 import { SidePanel } from "../../components/SidePanel";
 import { AiChatPanel } from "../../components/AiChatPanel";
+import { SearchOverlay } from "../../components/SearchOverlay";
 
 type CalendarView = "month" | "week" | "day";
 
@@ -101,6 +102,7 @@ function CalendarPage() {
   const [dialogDate, setDialogDate] = useState<Date>(new Date());
   const [editing, setEditing] = useState<CalendarEvent | null>(null);
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
+  const [searchOverlayOpen, setSearchOverlayOpen] = useState(false);
 
   const range = useMemo(() => {
     if (view === "month") {
@@ -228,6 +230,15 @@ function CalendarPage() {
     setDialogOpen(true);
   }
 
+  // From the search overlay: jump the calendar to the event's date, then open it.
+  function handleSearchSelect(ev: CalendarEvent) {
+    const start = ev.start.toDate();
+    setViewDate(view === "month" ? startOfMonth(start) : start);
+    setSelectedDate(start);
+    setSearchOverlayOpen(false);
+    handleEventClick(ev);
+  }
+
   async function handleSave(
     input: CalendarEventInput,
     options: { pushToGcal: boolean },
@@ -329,7 +340,17 @@ function CalendarPage() {
               {formatTitle(view, viewDate, weekStart)}
             </h2>
           </div>
-          <ViewSwitcher view={view} onChange={setView} />
+          <div className="flex items-center gap-1 sm:gap-2">
+            <button
+              type="button"
+              onClick={() => setSearchOverlayOpen(true)}
+              className="p-1.5 rounded-md text-muted hover:text-ink hover:bg-surface-soft transition shrink-0"
+              aria-label="Cari jadwal"
+            >
+              <Search size={18} />
+            </button>
+            <ViewSwitcher view={view} onChange={setView} />
+          </div>
         </div>
 
         <div ref={gridRef} className="flex-1 overflow-auto">
@@ -400,6 +421,14 @@ function CalendarPage() {
 
       {aiPanelOpen ? (
         <AiChatPanel onClose={() => setAiPanelOpen(false)} />
+      ) : null}
+
+      {searchOverlayOpen ? (
+        <SearchOverlay
+          uid={user.uid}
+          onClose={() => setSearchOverlayOpen(false)}
+          onSelect={handleSearchSelect}
+        />
       ) : null}
     </>
   );
