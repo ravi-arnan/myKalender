@@ -11,6 +11,7 @@ import id.raviarnan.mykalender.data.Event
 import id.raviarnan.mykalender.data.EventInput
 import id.raviarnan.mykalender.data.EventRepository
 import id.raviarnan.mykalender.notifications.EventNotifications
+import id.raviarnan.mykalender.widget.NextEventWidgetProvider
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -58,6 +59,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.value = _uiState.value.copy(events = events)
                 scheduler.reconcile(lastScheduledIds, events)
                 lastScheduledIds = events.map { it.id }.toSet()
+                NextEventWidgetProvider.requestUpdate(getApplication())
 
                 if (firstSnapshot) {
                     firstSnapshot = false
@@ -90,6 +92,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         for (id in lastScheduledIds) scheduler.cancel(id)
         lastScheduledIds = emptySet()
         _uiState.value = _uiState.value.copy(events = emptyList())
+        NextEventWidgetProvider.requestUpdate(getApplication())
     }
 
     fun signIn(context: Context) {

@@ -12,6 +12,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import id.raviarnan.mykalender.MainActivity
 import id.raviarnan.mykalender.R
 import id.raviarnan.mykalender.data.Event
+import id.raviarnan.mykalender.widget.NextEventWidgetProvider
 
 /**
  * Fires when an AlarmManager alarm goes off. Branches on alarmMode:
@@ -45,6 +46,7 @@ class AlarmReceiver : BroadcastReceiver() {
         }
 
         rescheduleIfRecurring(context, eventId)
+        NextEventWidgetProvider.requestUpdate(context)
     }
 
     private fun postSoftNotification(context: Context, eventId: String, title: String) {

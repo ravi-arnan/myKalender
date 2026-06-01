@@ -1,11 +1,13 @@
 package id.raviarnan.mykalender
 
 import android.Manifest
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -64,27 +66,55 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestPermission(),
     ) { /* state re-checked on next composition */ }
 
+    // Bumped whenever an "add event" intent arrives (from the home-screen widget),
+    // so the composition can open the add-event dialog. Read in setContent.
+    private val addEventSignal = mutableIntStateOf(0)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
+        consumeAddEventIntent(intent)
         val themeManager = ThemeManager(this)
         setContent {
             val preference by themeManager.observe()
                 .collectAsState(initial = themeManager.get())
             MyKalenderTheme(preference = preference) {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    AppRoot(themeManager = themeManager)
+                    AppRoot(
+                        themeManager = themeManager,
+                        openAddSignal = addEventSignal.intValue,
+                    )
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        consumeAddEventIntent(intent)
+    }
+
+    /** Increments [addEventSignal] once per add-event intent, then clears the flag. */
+    private fun consumeAddEventIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra(EXTRA_OPEN_ADD_EVENT, false) == true) {
+            addEventSignal.intValue++
+            intent.removeExtra(EXTRA_OPEN_ADD_EVENT)
+        }
+    }
+
+    companion object {
+        const val ACTION_ADD_EVENT = "id.raviarnan.mykalender.ADD_EVENT"
+        const val EXTRA_OPEN_ADD_EVENT = "open_add_event"
     }
 }
 
 @Composable
 private fun AppRoot(
     themeManager: ThemeManager,
+    openAddSignal: Int = 0,
     viewModel: AppViewModel = viewModel(),
 ) {
     val context = LocalContext.current
@@ -110,6 +140,16 @@ private fun AppRoot(
     val currentUid = state.user?.uid
     LaunchedEffect(currentUid) {
         if (currentUid != null) themeManager.hydrateFromFirestore()
+    }
+
+    // Quick-add from the home-screen widget: open the new-event dialog. Keyed on
+    // the signed-in user too, so a tap while signed out opens it once signed in.
+    LaunchedEffect(openAddSignal, currentUid) {
+        if (openAddSignal > 0 && currentUid != null) {
+            editing = null
+            currentTab = Tab.Events
+            showEventDialog = true
+        }
     }
 
     val permissions = rememberPermissionItems(refreshKey = permissionsRefreshKey)

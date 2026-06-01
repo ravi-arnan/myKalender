@@ -21,4 +21,9 @@
     <string name="dismiss">Matikan</string>
     <string name="snooze_5min">Tunda 5 menit</string>
     <string name="loading">Memuat…</string>
+    <string name="widget_description">Jadwal berikutnya + tombol tambah cepat</string>
+    <string name="widget_add_event">Tambah jadwal</string>
+    <string name="widget_next_label">Jadwal berikutnya</string>
+    <string name="widget_empty">Tidak ada jadwal mendatang</string>
+    <string name="widget_signed_out">Masuk untuk melihat jadwal</string>
 </resources>

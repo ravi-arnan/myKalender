@@ -38,6 +38,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:theme="@style/Theme.MyKalender">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -82,6 +83,18 @@
             android:name=".alarm.AlarmRingingService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
+
+        <!-- Home-screen widget: next event + quick-add button. -->
+        <receiver
+            android:name=".widget.NextEventWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/next_event_widget_info" />
+        </receiver>
 
     </application>
 

@@ -7,4 +7,12 @@
     <color name="hairline">#E5E7EB</color>
     <color name="muted">#6B7280</color>
     <color name="brand_accent">#3B82F6</color>
+
+    <!-- Home-screen widget (light). Night overrides in values-night/colors.xml. -->
+    <color name="widget_bg">#FFFFFF</color>
+    <color name="widget_hairline">#E5E7EB</color>
+    <color name="widget_text">#111111</color>
+    <color name="widget_text_muted">#6B7280</color>
+    <color name="widget_accent">#111111</color>
+    <color name="widget_on_accent">#FFFFFF</color>
 </resources>
