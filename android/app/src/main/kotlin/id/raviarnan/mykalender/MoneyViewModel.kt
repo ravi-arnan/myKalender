@@ -9,6 +9,8 @@ import id.raviarnan.mykalender.data.money.Budget
 import id.raviarnan.mykalender.data.money.CustomCategory
 import id.raviarnan.mykalender.data.money.CustomCategoryInput
 import id.raviarnan.mykalender.data.money.MoneyRepository
+import id.raviarnan.mykalender.data.money.RecurringInput
+import id.raviarnan.mykalender.data.money.RecurringTransaction
 import id.raviarnan.mykalender.data.money.Transaction
 import id.raviarnan.mykalender.data.money.TransactionInput
 import id.raviarnan.mykalender.data.money.Wallet
@@ -25,6 +27,7 @@ data class MoneyUiState(
     val wallets: List<Wallet> = emptyList(),
     val transactions: List<Transaction> = emptyList(),
     val bills: List<Bill> = emptyList(),
+    val recurring: List<RecurringTransaction> = emptyList(),
     val budgets: List<Budget> = emptyList(),
     val customCategories: List<CustomCategory> = emptyList(),
     val walletsLoaded: Boolean = false,
@@ -64,6 +67,17 @@ class MoneyViewModel(application: Application) : AndroidViewModel(application) {
         jobs += viewModelScope.launch {
             repo.bills(uid).collectLatest { list ->
                 _state.update { it.copy(bills = list) }
+            }
+        }
+        jobs += viewModelScope.launch {
+            repo.recurring(uid).collectLatest { list ->
+                _state.update { it.copy(recurring = list) }
+                // Auto-post due occurrences. Launched on viewModelScope (not the
+                // collectLatest scope) so a fresh emission doesn't cancel posting
+                // mid-way. Idempotent, so re-running is safe.
+                viewModelScope.launch {
+                    runCatching { repo.postDueRecurring(uid, list) }
+                }
             }
         }
         jobs += viewModelScope.launch {
@@ -110,6 +124,13 @@ class MoneyViewModel(application: Application) : AndroidViewModel(application) {
     }
     fun deleteBill(bill: Bill) = run { uid -> repo.deleteBill(uid, bill) }
     fun markBillPaid(bill: Bill) = run { uid -> repo.markBillPaid(uid, bill) }
+
+    // Recurring transactions
+    fun saveRecurring(existing: RecurringTransaction?, input: RecurringInput) = run { uid ->
+        if (existing == null) repo.createRecurring(uid, input)
+        else repo.updateRecurring(uid, existing.id, input)
+    }
+    fun deleteRecurring(id: String) = run { uid -> repo.deleteRecurring(uid, id) }
 
     // Budgets
     fun setBudget(categoryId: String, amount: Long) = run { uid ->

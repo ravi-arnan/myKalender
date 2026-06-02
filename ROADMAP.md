@@ -179,6 +179,16 @@ kode terisolasi (`lib/money/`, `components/money/`) agar bisa diekstrak nanti.
 - [x] **myDuit v2 Android** — done 2026-05-29
   - **Transfer antar dompet** — toggle tipe ketiga di TransactionDialog (Dari → Ke dompet), `toWalletId` di model + repo, render baris transfer (ikon SwapHoriz, jumlah netral)
   - **Anggaran bulanan** — tab "Anggaran", `MoneyRepository.budgets`/`setBudget` (upsert by categoryId), `BudgetDialog`, progress bar per kategori + laporan pengeluaran bulanan
+- [x] **Transaksi berulang (web + Android)** — done 2026-06-01
+  - Koleksi `users/{uid}/recurringTransactions`: template pemasukan/pengeluaran
+    rutin (gaji, langganan). Beda dgn Tagihan (ingatkan + "Tandai lunas") —
+    ini **auto-posting** tanpa alarm/konfirmasi
+  - Catch-up saat money dibuka (`postDueRecurring`): begitu tanggal jatuh tempo
+    bulan ini lewat & `lastPostedYM` != bulan ini → buat transaksi otomatis
+  - Idempoten: doc id transaksi `recur_{id}_{YM}` (`upsertTransactionById`) →
+    web & Android tak dobel-posting walau jalan bersamaan
+  - Tab "Berulang" + dialog (tipe income/expense, jumlah, tanggal, dompet,
+    kategori per-tipe, catatan, toggle Aktif); kartu status (dicatat/jeda/akan)
 - [x] **Kategori custom (web + Android)** — done 2026-05-29
   - Koleksi Firestore `users/{uid}/categories` (custom; kategori bawaan tetap di kode)
   - Web: registry ikon (17 pilihan) + helper murni `categoriesForWith`/`resolveCategory`, `category-store.ts` (CRUD), `CategoryDialog` (nama/jenis/warna/ikon), tab "kategori" untuk kelola

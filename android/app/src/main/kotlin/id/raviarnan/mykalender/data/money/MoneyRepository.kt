@@ -82,6 +82,17 @@ class MoneyRepository(
         col(uid, "transactions").document(id).delete().await()
     }
 
+    /**
+     * Creates/overwrites a transaction at a deterministic doc id. Used by
+     * recurring transactions so auto-posting the same month twice (even from web
+     * and Android at once) writes the same doc instead of duplicating.
+     */
+    suspend fun upsertTransactionById(uid: String, txId: String, input: TransactionInput) {
+        col(uid, "transactions").document(txId)
+            .set(input.toMap() + serverStamps(), SetOptions.merge())
+            .await()
+    }
+
     // ---------------------------------------------------------------- Bills --
 
     fun bills(uid: String): Flow<List<Bill>> = callbackFlow {
@@ -138,6 +149,70 @@ class MoneyRepository(
                 ),
             )
             .await()
+    }
+
+    // ------------------------------------------- Recurring transactions --
+
+    fun recurring(uid: String): Flow<List<RecurringTransaction>> = callbackFlow {
+        val reg = col(uid, "recurringTransactions")
+            .orderBy("dayOfMonth", Query.Direction.ASCENDING)
+            .addSnapshotListener { snap, err ->
+                if (err != null) { close(err); return@addSnapshotListener }
+                if (snap == null) return@addSnapshotListener
+                trySend(snap.documents.mapNotNull { d ->
+                    d.toObject(RecurringTransaction::class.java)?.copy(id = d.id)
+                })
+            }
+        awaitClose { reg.remove() }
+    }
+
+    suspend fun createRecurring(uid: String, input: RecurringInput) {
+        col(uid, "recurringTransactions").add(input.toMap() + serverStamps()).await()
+    }
+
+    suspend fun updateRecurring(uid: String, id: String, input: RecurringInput) {
+        col(uid, "recurringTransactions").document(id)
+            .update(input.toMap() + mapOf("updatedAt" to FieldValue.serverTimestamp()))
+            .await()
+    }
+
+    suspend fun deleteRecurring(uid: String, id: String) {
+        col(uid, "recurringTransactions").document(id).delete().await()
+    }
+
+    /**
+     * Auto-posts this month's occurrence for each active template whose due day
+     * has arrived and that hasn't posted yet. Idempotent (doc id recur_{id}_{YM}
+     * + lastPostedYM), so calling it on every load is safe.
+     */
+    suspend fun postDueRecurring(uid: String, items: List<RecurringTransaction>) {
+        val ym = currentYM()
+        val today = dayOfMonthNow()
+        for (rt in items) {
+            if (!rt.active) continue
+            if (rt.lastPostedYM == ym) continue
+            if (today < dueDayThisMonth(rt.dayOfMonth)) continue
+            upsertTransactionById(
+                uid,
+                "recur_${rt.id}_$ym",
+                TransactionInput(
+                    type = rt.type,
+                    amount = rt.amount,
+                    walletId = rt.walletId,
+                    categoryId = rt.categoryId,
+                    date = Timestamp(Date(thisMonthDueMillis(rt.dayOfMonth))),
+                    note = rt.note ?: rt.name,
+                ),
+            )
+            col(uid, "recurringTransactions").document(rt.id)
+                .update(
+                    mapOf(
+                        "lastPostedYM" to ym,
+                        "updatedAt" to FieldValue.serverTimestamp(),
+                    ),
+                )
+                .await()
+        }
     }
 
     // ------------------------------------------------------------- Budgets --
@@ -254,5 +329,16 @@ class MoneyRepository(
         "kind" to kind,
         "color" to color,
         "icon" to icon,
+    )
+
+    private fun RecurringInput.toMap(): Map<String, Any?> = mapOf(
+        "name" to name,
+        "type" to type,
+        "amount" to amount,
+        "walletId" to walletId,
+        "categoryId" to categoryId,
+        "dayOfMonth" to dayOfMonth,
+        "note" to note,
+        "active" to active,
     )
 }

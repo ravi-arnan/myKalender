@@ -8,6 +8,7 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  setDoc,
   updateDoc,
 } from "firebase/firestore";
 import { db } from "../firebase";
@@ -61,6 +62,28 @@ export async function deleteTransaction(
   txId: string,
 ): Promise<void> {
   await deleteDoc(doc(txCol(uid), txId));
+}
+
+/**
+ * Creates/overwrites a transaction at a deterministic doc id. Used by recurring
+ * transactions: the id encodes the template + year-month (`recur_{id}_{YM}`), so
+ * auto-posting the same month twice — even from web and Android at once — writes
+ * the same doc instead of producing a duplicate.
+ */
+export async function upsertTransactionById(
+  uid: string,
+  txId: string,
+  input: TransactionInput,
+): Promise<void> {
+  await setDoc(
+    doc(txCol(uid), txId),
+    {
+      ...clean(input),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
 }
 
 /**

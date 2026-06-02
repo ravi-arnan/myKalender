@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Pencil,
   Plus,
+  Repeat,
   Wallet as WalletIcon,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -63,16 +64,32 @@ import {
   type Bill,
   type BillInput,
 } from "../../lib/money/bills";
+import {
+  createRecurring,
+  deleteRecurring,
+  postDueRecurring,
+  subscribeRecurring,
+  updateRecurring,
+  type RecurringTransaction,
+  type RecurringTransactionInput,
+} from "../../lib/money/recurring";
 import { useWheelNav } from "../../lib/use-wheel-nav";
 import { TransactionDialog } from "../../components/money/TransactionDialog";
 import { WalletDialog } from "../../components/money/WalletDialog";
 import { BillDialog } from "../../components/money/BillDialog";
+import { RecurringDialog } from "../../components/money/RecurringDialog";
 
 export const Route = createFileRoute("/_app/money")({
   component: MoneyPage,
 });
 
-type Tab = "transaksi" | "anggaran" | "tagihan" | "dompet" | "kategori";
+type Tab =
+  | "transaksi"
+  | "anggaran"
+  | "tagihan"
+  | "berulang"
+  | "dompet"
+  | "kategori";
 
 function MoneyPage() {
   const user = auth.currentUser!;
@@ -85,6 +102,7 @@ function MoneyPage() {
   const loaded = walletsLoaded && txLoaded;
 
   const [bills, setBills] = useState<Bill[]>([]);
+  const [recurring, setRecurring] = useState<RecurringTransaction[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [customCategories, setCustomCategories] = useState<CustomCategory[]>([]);
 
@@ -94,6 +112,9 @@ function MoneyPage() {
   const [editingWallet, setEditingWallet] = useState<Wallet | null>(null);
   const [billDialogOpen, setBillDialogOpen] = useState(false);
   const [editingBill, setEditingBill] = useState<Bill | null>(null);
+  const [recurringDialogOpen, setRecurringDialogOpen] = useState(false);
+  const [editingRecurring, setEditingRecurring] =
+    useState<RecurringTransaction | null>(null);
   const [budgetCategory, setBudgetCategory] = useState<string | null>(null);
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<CustomCategory | null>(
@@ -109,6 +130,7 @@ function MoneyPage() {
     [user.uid],
   );
   useEffect(() => subscribeBills(user.uid, setBills), [user.uid]);
+  useEffect(() => subscribeRecurring(user.uid, setRecurring), [user.uid]);
   useEffect(() => subscribeBudgets(user.uid, setBudgets), [user.uid]);
   useEffect(
     () => subscribeCategories(user.uid, setCustomCategories),
@@ -122,6 +144,16 @@ function MoneyPage() {
       }),
     [user.uid],
   );
+
+  // Auto-post any recurring transactions whose due day has arrived this month.
+  // Idempotent (deterministic doc id + lastPostedYM), so re-running on every
+  // recurring/loaded change is safe — it no-ops once a month is posted.
+  useEffect(() => {
+    if (!loaded || recurring.length === 0) return;
+    postDueRecurring(user.uid, recurring).catch((e) =>
+      console.warn("Gagal auto-posting transaksi berulang:", e),
+    );
+  }, [loaded, recurring, user.uid]);
 
   const balances = useMemo(
     () => computeWalletBalances(wallets, transactions),
@@ -280,6 +312,23 @@ function MoneyPage() {
     if (editingBill) await deleteBill(user.uid, editingBill);
   }
 
+  function openNewRecurring() {
+    setEditingRecurring(null);
+    setRecurringDialogOpen(true);
+  }
+  function openEditRecurring(r: RecurringTransaction) {
+    setEditingRecurring(r);
+    setRecurringDialogOpen(true);
+  }
+  async function handleSaveRecurring(input: RecurringTransactionInput) {
+    if (editingRecurring)
+      await updateRecurring(user.uid, editingRecurring.id, input);
+    else await createRecurring(user.uid, input);
+  }
+  async function handleDeleteRecurring() {
+    if (editingRecurring) await deleteRecurring(user.uid, editingRecurring.id);
+  }
+
   function openNewCategory() {
     setEditingCategory(null);
     setCategoryDialogOpen(true);
@@ -315,7 +364,14 @@ function MoneyPage() {
         </h2>
         <div className="flex items-center rounded-md border border-hairline overflow-x-auto min-w-0">
           {(
-            ["transaksi", "anggaran", "tagihan", "dompet", "kategori"] as const
+            [
+              "transaksi",
+              "anggaran",
+              "tagihan",
+              "berulang",
+              "dompet",
+              "kategori",
+            ] as const
           ).map((t) => (
             <button
               key={t}
@@ -513,6 +569,41 @@ function MoneyPage() {
             </button>
           </div>
         </div>
+      ) : tab === "berulang" ? (
+        /* Transaksi berulang tab */
+        <div className="flex-1 overflow-auto">
+          <div className="max-w-2xl mx-auto p-4 sm:p-6 space-y-3">
+            {recurring.length === 0 ? (
+              <p className="text-sm text-muted text-center py-10">
+                Belum ada transaksi berulang. Tambah pemasukan/pengeluaran rutin
+                (mis. gaji, langganan) — otomatis tercatat tiap bulan tanpa
+                konfirmasi.
+              </p>
+            ) : (
+              recurring.map((r) => (
+                <RecurringCard
+                  key={r.id}
+                  item={r}
+                  walletName={
+                    wallets.find((w) => w.id === r.walletId)?.name ?? "—"
+                  }
+                  categoryLabel={
+                    resolveCategory(r.categoryId, r.type, customCategories).label
+                  }
+                  postedThisMonth={r.lastPostedYM === thisYM}
+                  onEdit={() => openEditRecurring(r)}
+                />
+              ))
+            )}
+            <button
+              type="button"
+              onClick={openNewRecurring}
+              className="w-full rounded-xl border border-dashed border-hairline py-3 text-sm font-medium text-muted hover:text-ink hover:border-ink transition flex items-center justify-center gap-2"
+            >
+              <Plus size={16} /> Tambah transaksi berulang
+            </button>
+          </div>
+        </div>
       ) : tab === "dompet" ? (
         /* Dompet tab */
         <div className="flex-1 overflow-auto">
@@ -603,6 +694,17 @@ function MoneyPage() {
           onClose={() => setBillDialogOpen(false)}
           onSave={handleSaveBill}
           onDelete={editingBill ? handleDeleteBill : undefined}
+        />
+      ) : null}
+
+      {recurringDialogOpen ? (
+        <RecurringDialog
+          wallets={wallets}
+          customCategories={customCategories}
+          existing={editingRecurring ?? undefined}
+          onClose={() => setRecurringDialogOpen(false)}
+          onSave={handleSaveRecurring}
+          onDelete={editingRecurring ? handleDeleteRecurring : undefined}
         />
       ) : null}
 
@@ -784,6 +886,74 @@ function BillCard({
           >
             Tandai lunas bulan ini → catat pengeluaran
           </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RecurringCard({
+  item,
+  walletName,
+  categoryLabel,
+  postedThisMonth,
+  onEdit,
+}: {
+  item: RecurringTransaction;
+  walletName: string;
+  categoryLabel: string;
+  postedThisMonth: boolean;
+  onEdit: () => void;
+}) {
+  const isIncome = item.type === "income";
+  return (
+    <div className="rounded-xl border border-hairline p-4">
+      <div className="flex items-center gap-3">
+        <span
+          className={`w-10 h-10 rounded-full flex items-center justify-center flex-none ${
+            isIncome ? "bg-success/15 text-success" : "bg-error/15 text-error"
+          }`}
+        >
+          {isIncome ? <ArrowDownLeft size={18} /> : <ArrowUpRight size={18} />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-ink truncate">{item.name}</p>
+          <p className="text-xs text-muted">
+            Tiap tanggal {item.dayOfMonth} · {categoryLabel} · {walletName}
+          </p>
+        </div>
+        <div className="text-right flex-none">
+          <p
+            className={`text-sm font-semibold ${
+              isIncome ? "text-success" : "text-ink"
+            }`}
+          >
+            {isIncome ? "+" : "−"}
+            {formatIDR(item.amount)}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onEdit}
+          className="p-1.5 rounded-md text-muted hover:text-ink hover:bg-surface-soft transition flex-none"
+          aria-label="Edit transaksi berulang"
+        >
+          <Pencil size={15} />
+        </button>
+      </div>
+      <div className="mt-3 pt-3 border-t border-hairline-soft">
+        {!item.active ? (
+          <span className="text-xs font-medium text-muted-soft">
+            Dijeda — tidak otomatis dicatat
+          </span>
+        ) : postedThisMonth ? (
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-success">
+            <Check size={14} /> Sudah dicatat bulan ini
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted">
+            <Repeat size={13} /> Otomatis dicatat tanggal {item.dayOfMonth}
+          </span>
         )}
       </div>
     </div>

@@ -93,6 +93,39 @@ data class BillInput(
     val alarmMode: String,
 )
 
+// ----------------------------------------------- Recurring transaction ----
+
+/**
+ * A recurring income/expense template (e.g. salary, a subscription). Unlike a
+ * [Bill] — which reminds with an alarm and waits for "Tandai lunas" — this
+ * auto-posts a transaction on its monthly due date with no confirmation.
+ * Posting is a catch-up that runs when the money screen loads (no server cron).
+ */
+data class RecurringTransaction(
+    val id: String = "",
+    val name: String = "",
+    val type: String = "expense", // income | expense
+    val amount: Long = 0,
+    val walletId: String = "",
+    val categoryId: String = "",
+    val dayOfMonth: Int = 1,
+    val note: String? = null,
+    val active: Boolean = true,
+    val lastPostedYM: String? = null,
+    val createdAt: Timestamp? = null,
+)
+
+data class RecurringInput(
+    val name: String,
+    val type: String,
+    val amount: Long,
+    val walletId: String,
+    val categoryId: String,
+    val dayOfMonth: Int,
+    val note: String? = null,
+    val active: Boolean = true,
+)
+
 // ---------------------------------------------------------------- Budget ----
 
 /**
@@ -252,4 +285,29 @@ fun nextDueDateMillis(
 fun currentYM(now: Long = System.currentTimeMillis()): String {
     val c = Calendar.getInstance().apply { timeInMillis = now }
     return "%04d-%02d".format(c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1)
+}
+
+/** The day this month a recurring tx posts, clamped to the month's length. */
+fun dueDayThisMonth(dayOfMonth: Int, now: Long = System.currentTimeMillis()): Int {
+    val cal = Calendar.getInstance().apply { timeInMillis = now }
+    return minOf(dayOfMonth, cal.getActualMaximum(Calendar.DAY_OF_MONTH))
+}
+
+/** Day-of-month of `now`. */
+fun dayOfMonthNow(now: Long = System.currentTimeMillis()): Int =
+    Calendar.getInstance().apply { timeInMillis = now }.get(Calendar.DAY_OF_MONTH)
+
+/** Epoch-millis for this month's due day at the given hour (default 09:00). */
+fun thisMonthDueMillis(
+    dayOfMonth: Int,
+    atHour: Int = 9,
+    now: Long = System.currentTimeMillis(),
+): Long {
+    val c = Calendar.getInstance().apply { timeInMillis = now }
+    val build = Calendar.getInstance()
+    build.clear()
+    build.set(c.get(Calendar.YEAR), c.get(Calendar.MONTH), 1, atHour, 0, 0)
+    val lastDay = build.getActualMaximum(Calendar.DAY_OF_MONTH)
+    build.set(Calendar.DAY_OF_MONTH, minOf(dayOfMonth, lastDay))
+    return build.timeInMillis
 }

@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material3.Card
@@ -55,6 +56,7 @@ import id.raviarnan.mykalender.MoneyViewModel
 import id.raviarnan.mykalender.data.money.Bill
 import id.raviarnan.mykalender.data.money.Budget
 import id.raviarnan.mykalender.data.money.CustomCategory
+import id.raviarnan.mykalender.data.money.RecurringTransaction
 import id.raviarnan.mykalender.data.money.Transaction
 import id.raviarnan.mykalender.data.money.TxCategory
 import id.raviarnan.mykalender.data.money.Wallet
@@ -75,6 +77,7 @@ private enum class MoneyTab(val label: String) {
     Transaksi("Transaksi"),
     Anggaran("Anggaran"),
     Tagihan("Tagihan"),
+    Berulang("Berulang"),
     Dompet("Dompet"),
     Kategori("Kategori"),
 }
@@ -106,6 +109,8 @@ fun MoneyScreen(
     var showWalletDialog by remember { mutableStateOf(false) }
     var editingBill by remember { mutableStateOf<Bill?>(null) }
     var showBillDialog by remember { mutableStateOf(false) }
+    var editingRecurring by remember { mutableStateOf<RecurringTransaction?>(null) }
+    var showRecurringDialog by remember { mutableStateOf(false) }
     var budgetCategory by remember { mutableStateOf<String?>(null) }
     var editingCategory by remember { mutableStateOf<CustomCategory?>(null) }
     var showCategoryDialog by remember { mutableStateOf(false) }
@@ -120,6 +125,7 @@ fun MoneyScreen(
             MoneyTab.Transaksi -> { editingTx = null; showTxDialog = true }
             MoneyTab.Anggaran -> {} // budgets are edited per-category row
             MoneyTab.Tagihan -> { editingBill = null; showBillDialog = true }
+            MoneyTab.Berulang -> { editingRecurring = null; showRecurringDialog = true }
             MoneyTab.Dompet -> { editingWallet = null; showWalletDialog = true }
             MoneyTab.Kategori -> { editingCategory = null; showCategoryDialog = true }
         }
@@ -188,6 +194,13 @@ fun MoneyScreen(
                 onPay = { viewModel.markBillPaid(it) },
                 onAdd = { editingBill = null; showBillDialog = true },
             )
+            tab == MoneyTab.Berulang -> BerulangTab(
+                recurring = state.recurring,
+                wallets = state.wallets,
+                customCategories = state.customCategories,
+                onEdit = { editingRecurring = it; showRecurringDialog = true },
+                onAdd = { editingRecurring = null; showRecurringDialog = true },
+            )
             tab == MoneyTab.Dompet -> DompetTab(
                 wallets = state.wallets,
                 balances = balances,
@@ -242,6 +255,21 @@ fun MoneyScreen(
             },
             onDelete = editingBill?.let { b ->
                 { viewModel.deleteBill(b); showBillDialog = false; editingBill = null }
+            },
+        )
+    }
+    if (showRecurringDialog) {
+        RecurringDialog(
+            wallets = state.wallets,
+            customCategories = state.customCategories,
+            existing = editingRecurring,
+            onDismiss = { showRecurringDialog = false },
+            onSave = {
+                viewModel.saveRecurring(editingRecurring, it)
+                showRecurringDialog = false; editingRecurring = null
+            },
+            onDelete = editingRecurring?.let { r ->
+                { viewModel.deleteRecurring(r.id); showRecurringDialog = false; editingRecurring = null }
             },
         )
     }
@@ -744,6 +772,109 @@ private fun BillCard(
             } else {
                 TextButton(onClick = onPay, contentPadding = PaddingValues(0.dp)) {
                     Text("Tandai lunas → catat pengeluaran")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BerulangTab(
+    recurring: List<RecurringTransaction>,
+    wallets: List<Wallet>,
+    customCategories: List<CustomCategory>,
+    onEdit: (RecurringTransaction) -> Unit,
+    onAdd: () -> Unit,
+) {
+    val thisYM = remember { currentYM() }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        if (recurring.isEmpty()) {
+            item {
+                Text(
+                    text = "Belum ada transaksi berulang. Tambah pemasukan/pengeluaran rutin (mis. gaji, langganan) — otomatis tercatat tiap bulan tanpa konfirmasi.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                )
+            }
+        } else {
+            items(recurring) { r ->
+                RecurringCard(
+                    item = r,
+                    walletName = wallets.find { it.id == r.walletId }?.name ?: "—",
+                    categoryLabel = categoryOrFallbackWith(r.categoryId, r.type, customCategories).label,
+                    postedThisMonth = r.lastPostedYM == thisYM,
+                    onEdit = { onEdit(r) },
+                )
+            }
+        }
+        item { AddRow("Tambah transaksi berulang", onAdd) }
+        item { Spacer(Modifier.height(80.dp)) }
+    }
+}
+
+@Composable
+private fun RecurringCard(
+    item: RecurringTransaction,
+    walletName: String,
+    categoryLabel: String,
+    postedThisMonth: Boolean,
+    onEdit: () -> Unit,
+) {
+    val isIncome = item.type == "income"
+    val income = MaterialTheme.colorScheme.primary
+    val onBg = MaterialTheme.colorScheme.onBackground
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(0.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(item.name, style = MaterialTheme.typography.bodyLarge, color = onBg)
+                    Text(
+                        text = "Tiap tanggal ${item.dayOfMonth} · $categoryLabel · $walletName",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Text(
+                    text = (if (isIncome) "+" else "−") + formatIDR(item.amount),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = if (isIncome) income else onBg,
+                )
+                IconButton(onClick = onEdit) {
+                    Icon(Icons.Filled.Edit, "Edit transaksi berulang", modifier = Modifier.size(18.dp))
+                }
+            }
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
+            when {
+                !item.active -> Text(
+                    "Dijeda — tidak otomatis dicatat",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                postedThisMonth -> Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.CheckCircle, null, tint = income, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.size(6.dp))
+                    Text("Sudah dicatat bulan ini", style = MaterialTheme.typography.labelMedium, color = income)
+                }
+                else -> Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Repeat, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(15.dp))
+                    Spacer(Modifier.size(6.dp))
+                    Text(
+                        "Otomatis dicatat tanggal ${item.dayOfMonth}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }
