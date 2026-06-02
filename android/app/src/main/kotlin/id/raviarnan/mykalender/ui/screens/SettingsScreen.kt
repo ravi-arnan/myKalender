@@ -23,23 +23,35 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import id.raviarnan.mykalender.BuildConfig
+import id.raviarnan.mykalender.update.AppUpdater
+import id.raviarnan.mykalender.update.UpdateInfo
 import id.raviarnan.mykalender.ui.theme.ThemeManager
 import id.raviarnan.mykalender.ui.theme.ThemePreference
+import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen(themeManager: ThemeManager, onSignOut: () -> Unit) {
@@ -93,6 +105,8 @@ fun SettingsScreen(themeManager: ThemeManager, onSignOut: () -> Unit) {
             SettingSection(icon = Icons.Filled.Shield, title = "Privasi") {
                 SettingRow("Data jadwal", "Tersimpan di Firestore akun pribadi")
             }
+
+            UpdateSection()
 
             OutlinedButton(
                 onClick = onSignOut,
@@ -157,6 +171,120 @@ private fun SettingSection(
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
         ) {
             Column { content() }
+        }
+    }
+}
+
+private sealed interface UpdateState {
+    data object Idle : UpdateState
+    data object Checking : UpdateState
+    data object UpToDate : UpdateState
+    data class Available(val info: UpdateInfo) : UpdateState
+    data class Downloading(val progress: Float) : UpdateState
+    data class Error(val message: String) : UpdateState
+}
+
+@Composable
+private fun UpdateSection() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var state by remember { mutableStateOf<UpdateState>(UpdateState.Idle) }
+
+    SettingSection(icon = Icons.Filled.SystemUpdate, title = "Aplikasi") {
+        SettingRow("Versi", BuildConfig.VERSION_NAME)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            when (val s = state) {
+                is UpdateState.Available -> {
+                    Text(
+                        text = "Versi baru ${s.info.versionName} tersedia",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    if (s.info.notes.isNotBlank()) {
+                        Text(
+                            text = s.info.notes,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Button(
+                        onClick = {
+                            state = UpdateState.Downloading(-1f)
+                            scope.launch {
+                                try {
+                                    val file = AppUpdater.download(context, s.info.apkUrl) { p ->
+                                        state = UpdateState.Downloading(p)
+                                    }
+                                    AppUpdater.install(context, file)
+                                    state = UpdateState.Idle
+                                } catch (t: Throwable) {
+                                    state = UpdateState.Error(t.message ?: "Gagal mengunduh")
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Unduh & pasang") }
+                }
+
+                is UpdateState.Downloading -> {
+                    if (s.progress < 0f) {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    } else {
+                        LinearProgressIndicator(
+                            progress = { s.progress },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    Text(
+                        text = "Mengunduh… " + if (s.progress >= 0f) "${(s.progress * 100).toInt()}%" else "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                else -> {
+                    OutlinedButton(
+                        onClick = {
+                            state = UpdateState.Checking
+                            scope.launch {
+                                state = try {
+                                    val info = AppUpdater.check()
+                                    if (info != null) UpdateState.Available(info)
+                                    else UpdateState.UpToDate
+                                } catch (t: Throwable) {
+                                    UpdateState.Error(t.message ?: "Gagal mengecek")
+                                }
+                            }
+                        },
+                        enabled = s !is UpdateState.Checking,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                    ) {
+                        Text(if (s is UpdateState.Checking) "Mengecek…" else "Cek pembaruan")
+                    }
+                    when (s) {
+                        is UpdateState.UpToDate -> Text(
+                            text = "Kamu sudah pakai versi terbaru.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        is UpdateState.Error -> Text(
+                            text = s.message,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                        else -> {}
+                    }
+                }
+            }
         }
     }
 }

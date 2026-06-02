@@ -146,6 +146,16 @@ Status: **Phase 1 (Web) + Phase 2 (Android alarm) selesai 2026-05-29.** Core req
   - Quick-add: intent `EXTRA_OPEN_ADD_EVENT` → MainActivity (`singleTop`, `onNewIntent`)
     buka dialog tambah event; body tap → buka app
   - Light/dark via `values-night/colors.xml`; layout resizable 4x2
+- [x] **Launcher icon diperbaiki (Android)** — done 2026-06-02
+  - Adaptive icon: foreground ber-padding dari `myKalenderLogo.png` (biar tidak
+    ke-crop/zoom di safe-zone), background hitam; monochrome bel dibuang (themed
+    icon MIUI tak lagi nampilin bel lama). Versi naik ke 0.2.0
+- [x] **Update in-app via GitHub Releases (Android)** — done 2026-06-02
+  - `update/AppUpdater`: cek `releases/latest` repo (HttpURLConnection + org.json),
+    banding tag `vX.Y.Z` vs `BuildConfig.VERSION_NAME`, unduh aset `.apk` (progress),
+    pasang via `FileProvider` + `ACTION_VIEW` (perlu `REQUEST_INSTALL_PACKAGES`)
+  - Seksi "Aplikasi" di Pengaturan: tampil versi + "Cek pembaruan" → "Unduh & pasang"
+  - Rilis sideload (bukan Play), jadi install tetap 1× tap konfirmasi installer
 - [x] **Cari event (web + Android)** — done 2026-06-01
   - Android: kolom cari di mode List `EventsScreen` → filter jadwal mendatang
     (judul + deskripsi, case-insensitive), state "tidak ada hasil"
@@ -223,6 +233,11 @@ kode terisolasi (`lib/money/`, `components/money/`) agar bisa diekstrak nanti.
 - **Deploy Firestore rules**: `firebase deploy --only firestore:rules` (dari `myKalender/` root)
 - **Deploy web**: `cd web && pnpm build && cd .. && firebase deploy --only hosting`
 - **Build release APK**: `cd android && ./gradlew assembleRelease` → `app/build/outputs/apk/release/app-release.apk`
+- **Rilis update in-app** (tiap versi baru): (1) naikkan `versionCode` + `versionName` di
+  `android/app/build.gradle.kts`; (2) `assembleRelease`; (3) `gh release create v<versionName>
+  app/build/outputs/apk/release/app-release.apk -t "v<versionName>" -n "<catatan>"`. App
+  yang terpasang cek `releases/latest` → kalau tag > versi terpasang, tombol "Unduh & pasang"
+  muncul di Pengaturan → Aplikasi. Tag wajib format `vX.Y.Z`.
 - **Critical untuk MIUI**: tanpa Autostart + Other permissions + No battery restriction, alarm bisa di-suppress saat app di background. Tidak ada API publik untuk membaca status izin tersebut.
 - **URL Hosting**: https://mykalender-cad8f.web.app
 - **Keystore credentials**: `android/keystore.properties` (gitignored), keystore di `.archive/release.keystore`
