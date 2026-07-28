@@ -1,12 +1,20 @@
-// Cloudflare Worker: server-side proxy for the GitHub Models AI feature.
+// Cloudflare Worker: server-side proxy for the AI Schedule Generator.
 //
-// Keeps the GitHub PAT (GITHUB_MODELS_TOKEN secret) off the client. The web
+// Keeps the upstream API key (GROQ_API_KEY secret) off the client. The web
 // app sends a Firebase ID token instead; this worker verifies it against
 // Google's public keys so only signed-in users of *this* Firebase project can
 // use the proxy (the worker URL itself is public, in the client bundle).
+//
+// Upstream was GitHub Models until 2026-07-29. GitHub Models announced its
+// retirement for 2026-07-30 (a `sunset` response header), so this moved to
+// Groq's OpenAI-compatible endpoint, which is also free-tier and already holds
+// the key used elsewhere. Do not go back.
 
-const UPSTREAM = "https://models.github.ai/inference/chat/completions";
-const MODEL = "openai/gpt-4o-mini";
+const UPSTREAM = "https://api.groq.com/openai/v1/chat/completions";
+// Of the models Groq serves, the gpt-oss pair are the ones that accept
+// `response_format: json_schema`. 120b beat 20b on relative-date arithmetic
+// ("Selasa terdekat") in side-by-side runs, so it is the one pinned here.
+const MODEL = "openai/gpt-oss-120b";
 const JWK_URL =
   "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
 
@@ -21,7 +29,7 @@ export default {
     if (request.method !== "POST") {
       return json({ error: "Method not allowed" }, 405, cors);
     }
-    if (!env.GITHUB_MODELS_TOKEN) {
+    if (!env.GROQ_API_KEY) {
       return json({ error: "Proxy belum dikonfigurasi (secret kosong)" }, 500, cors);
     }
 
@@ -49,7 +57,7 @@ export default {
     const upstream = await fetch(UPSTREAM, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${env.GITHUB_MODELS_TOKEN}`,
+        Authorization: `Bearer ${env.GROQ_API_KEY}`,
         "Content-Type": "application/json",
         Accept: "application/json",
       },

@@ -1,5 +1,9 @@
 # myKalender - Implementation Plan
 
+> **Rencana awal, bukan deskripsi sistem sekarang.** Stack berubah di tengah jalan:
+> Next.js/Vercel/Turso/GitHub Models → Vite + Firebase (Hosting, Firestore, Auth) +
+> Android native, dengan AI lewat Cloudflare Worker ke Groq. `ROADMAP.md` yang berlaku.
+
 > Step-by-step implementation plan untuk MVP. Mengacu ke [PRD](./PRD.md) dan [DESIGN](../DESIGN.md). Estimasi total 2-3 minggu.
 
 ---

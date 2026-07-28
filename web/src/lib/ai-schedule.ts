@@ -1,12 +1,14 @@
 // Client for natural-language schedule parsing.
-// The GitHub Models PAT is NOT in the client bundle: requests go through a
-// Cloudflare Worker proxy (see /worker) that holds the PAT server-side and
+// The upstream API key is NOT in the client bundle: requests go through a
+// Cloudflare Worker proxy (see /worker) that holds the key server-side and
 // verifies the caller's Firebase ID token. VITE_AI_PROXY_URL is the worker URL
 // (public, not a secret).
 
 import { auth } from "./firebase";
 
-const MODEL = "openai/gpt-4o-mini";
+// Groq, since GitHub Models was retired on 2026-07-30. The worker pins the
+// model server-side too; this constant only has to agree with it.
+const MODEL = "openai/gpt-oss-120b";
 const TIMEZONE = "Asia/Makassar";
 
 export type AiRecurrence = "none" | "daily" | "weekdays" | "weekly" | "monthly";
@@ -21,6 +23,11 @@ export interface AiParsedEvent {
   recurrence: AiRecurrence;
   reminderOffsetsMinutes: number[]; // each 0/5/10/20/30/60/1440
 }
+
+/** What the model actually returns: reminder offsets arrive as strings. */
+type AiRawEvent = Omit<AiParsedEvent, "reminderOffsetsMinutes"> & {
+  reminderOffsetsMinutes: string[];
+};
 
 interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -55,11 +62,24 @@ const EVENT_SCHEMA = {
             type: "string",
             enum: ["none", "daily", "weekdays", "weekly", "monthly"],
           },
+          // Strings, not integers, and that is deliberate. Groq's constrained
+          // decoder drops the separator between elements of an unconstrained
+          // integer array: asking for two reminders ("1 hari dan 1 jam
+          // sebelum") reliably returns [144060] instead of [1440, 60], which
+          // normalizeEvent then snaps to a single 1440 and the second reminder
+          // is silently lost. Verified 2026-07-29: reproducible on every run
+          // with `items: { type: "integer" }`, correct on every run with an
+          // enum of strings, and correct with no response_format at all, so it
+          // is the decoder rather than the model. normalizeEvent already
+          // coerces with Number(), so nothing downstream cares.
           reminderOffsetsMinutes: {
             type: "array",
-            items: { type: "integer" },
+            items: {
+              type: "string",
+              enum: ["0", "5", "10", "20", "30", "60", "1440"],
+            },
             description:
-              "One or more reminders, minutes before start (each: 0, 5, 10, 20, 30, 60, or 1440). Usually one; use multiple only when the user asks for several alerts.",
+              "One or more reminders, minutes before start, one entry per reminder. Usually one; use multiple only when the user asks for several alerts.",
           },
         },
         required: [
@@ -180,7 +200,7 @@ export async function parseSchedulePrompt(
   const content = json.choices?.[0]?.message?.content;
   if (!content) throw new Error("Respons AI kosong");
 
-  let parsed: { events?: AiParsedEvent[] };
+  let parsed: { events?: AiRawEvent[] };
   try {
     parsed = JSON.parse(content);
   } catch {
@@ -195,7 +215,7 @@ const VALID_OFFSETS = [0, 5, 10, 20, 30, 60, 1440];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^\d{2}:\d{2}$/;
 
-function normalizeEvent(e: AiParsedEvent): AiParsedEvent {
+function normalizeEvent(e: AiRawEvent): AiParsedEvent {
   if (!DATE_RE.test(e.startDate)) {
     throw new Error(`AI mengembalikan tanggal tidak valid: ${e.startDate}`);
   }

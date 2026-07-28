@@ -1,5 +1,10 @@
 # myKalender - Deployment Guide
 
+> **Dokumen ini menggambarkan arsitektur yang sudah ditinggalkan** (Next.js di Vercel +
+> Turso + GitHub Models). Yang jalan sekarang: web Vite di Firebase Hosting, data di
+> Firestore, AI lewat Cloudflare Worker ke Groq. Untuk langkah deploy yang berlaku lihat
+> "Catatan teknis" di `ROADMAP.md` dan `worker/README.md`. Disimpan sebagai catatan sejarah.
+
 Deploy myKalender ke Vercel (free tier). Estimasi waktu: 15-30 menit.
 
 ---
