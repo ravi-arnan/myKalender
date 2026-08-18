@@ -4,6 +4,33 @@ Tracking pekerjaan yang sudah selesai dan yang akan datang.
 
 Status: **Phase 1 (Web) + Phase 2 (Android alarm) selesai 2026-05-29.** Core requirement teman pengguna — reminder yang bunyi seperti alarm — sudah berfungsi di Redmi Android 15. Web live di https://mykalender-cad8f.web.app. Release APK signed siap distribusi.
 
+## PERLU DICEK DULU (audit 19 Agu 2026)
+
+Worker AI `mykalender-ai` kemungkinan masih menjalankan versi GitHub Models, dan
+GitHub Models pensiun 30 Juli 2026. Kalau benar, **fitur AI Jadwal di web live sudah
+rusak sekitar tiga minggu**, diam-diam, karena yang mati upstream-nya bukan aplikasinya.
+
+Belum terbukti: probe dari luar tidak bisa membedakan versi lama dan baru karena string
+error keduanya identik, dan yang berubah hanya nama env var
+(`GITHUB_MODELS_TOKEN` -> `GROQ_API_KEY`). Bukti tak langsung searah: commit migrasi Groq
+29 Juli, tapi `worker/.wrangler/` terakhir tersentuh 30 Mei.
+
+Satu perintah menyelesaikannya:
+
+    cd worker && npx wrangler login && npx wrangler secret list
+
+`GROQ_API_KEY` muncul berarti versi baru sudah jalan. Kalau hanya `GITHUB_MODELS_TOKEN`
+yang muncul, dugaan di atas benar, lalu:
+
+    npx wrangler secret put GROQ_API_KEY && npx wrangler deploy
+
+Catatan audit lain pada worker (tidak mendesak): verifikasi token Firebase-nya solid
+(aud, iss, exp, sub, kid, signature RS256 lewat WebCrypto; header `alg` tidak diperiksa
+tapi itu tidak bisa dieksploitasi karena verifikasinya selalu RS256 terhadap kunci Google).
+Tidak ada rate limiting, dan hanya `model` yang dipin server-side, jadi siapa pun yang
+login Google bisa memakainya sebagai proxy LLM umum atas kuota Groq. Error runtime mentah
+ikut terkirim ke klien (`atob() called with invalid base64...`), sebaiknya diringkas.
+
 ## Selesai
 
 ### Foundation
