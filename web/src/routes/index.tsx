@@ -382,7 +382,7 @@ function Features() {
       icon: <Sparkles size={20} />,
       title: "AI Schedule Generator",
       body:
-        "Ketik aktivitas mingguan kamu, AI parse jadi event terstruktur. Powered by gpt-4o-mini via GitHub Models.",
+        "Ketik aktivitas mingguan kamu, AI parse jadi event terstruktur. Powered by gpt-oss-120b via Groq.",
     },
     {
       icon: <Users size={20} />,

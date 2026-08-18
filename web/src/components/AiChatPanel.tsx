@@ -303,7 +303,7 @@ export function AiChatPanel({ onClose }: AiChatPanelProps) {
                 AI Jadwal
               </p>
               <p className="text-[10px] text-muted-soft mt-0.5">
-                gpt-4o-mini via GitHub Models
+                gpt-oss-120b via Groq
               </p>
             </div>
           </div>

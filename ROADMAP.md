@@ -43,6 +43,33 @@ Status: **Phase 1 (Web) + Phase 2 (Android alarm) selesai 2026-05-29.** Core req
 - [x] **Signed release APK** — keystore di `.archive/`, config di `keystore.properties`
 - [x] **First-launch MIUI onboarding** — auto-open PermissionsSheet sekali per-user via SharedPreferences
 
+### AI
+- [x] **Pindah upstream AI dari GitHub Models ke Groq** — done 2026-07-29
+  - **Kenapa**: GitHub Models mengumumkan pensiun per **2026-07-30** (header `sunset`,
+    ketahuan waktu ngerjain `notulen`). Fitur AI Jadwal bakal mati diam-diam kalau dibiarkan.
+    Kebetulan PAT `models:read`-nya sendiri belum pernah dibuat, jadi tidak ada yang hilang.
+  - Worker: `UPSTREAM` → `https://api.groq.com/openai/v1/chat/completions`,
+    model dipin `openai/gpt-oss-120b`, secret `GITHUB_MODELS_TOKEN` → `GROQ_API_KEY`.
+    Sisa worker (verifikasi Firebase ID token, CORS allowlist, pin model) tidak berubah —
+    Groq OpenAI-compatible.
+  - Pilihan model diuji langsung: `llama-3.3-70b-versatile` dan `qwen/qwen3.6-27b`
+    **menolak** `response_format: json_schema`. Dari dua yang bisa, 120b benar soal tanggal
+    relatif ("Selasa terdekat" → 2026-08-04) sementara 20b menjawab hari Sabtu.
+  - **Bug decoder Groq yang ketemu & diakali**: array integer tanpa constraint kehilangan
+    pemisah antar elemen. "ingatkan 1 hari dan 1 jam sebelum" konsisten balik `[144060]`
+    (1440 dan 60 nyambung) — lalu di-snap `normalizeEvent` jadi 1440 doang, pengingat kedua
+    **hilang diam-diam**. Diuji: salah di tiap run dengan `items: {type: integer}`, benar di
+    tiap run dengan enum string, dan benar juga tanpa `response_format` sama sekali → jadi
+    decoder-nya, bukan modelnya. Schema sekarang pakai enum string; `normalizeEvent` sudah
+    `Number()`-in jadi tidak ada perubahan hilir.
+  - `worker/verify-upstream.sh` — cek yang bisa dijalankan ulang: nembak Groq langsung
+    (tanpa worker/Firebase) dan meng-assert schema diterima, tanggal relatif benar, dan
+    pengingat tidak nyambung. Hijau 2026-07-29.
+  - **BUTUH RAVI**: `npx wrangler secret put GROQ_API_KEY` (key dari console.groq.com,
+    free tier) lalu `npx wrangler deploy`, dan rebuild + deploy web. Sampai itu dijalankan
+    fitur AI Jadwal tetap mati — sama seperti sebelumnya, cuma sekarang penyebabnya bukan
+    layanan yang sudah pensiun.
+
 ## Belum
 
 ### Operasional / distribusi
